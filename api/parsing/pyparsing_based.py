@@ -29,6 +29,7 @@ from api.parsing.db_info import (
     PARSER_CLASS_TO_FIELD_INFOS,
     ParserClass,
 )
+from api.parsing.mana_symbols import first_invalid_mana_symbol
 from api.parsing.nodes import (
     AndNode,
     BinaryOperatorNode,
@@ -268,12 +269,39 @@ def create_mana_parsers() -> dict[str, ParserElement]:
 
     def make_mana_value_node(tokens: list[str]) -> ManaValueNode:
         """Create a ManaValueNode for mana cost strings."""
-        return ManaValueNode(tokens[0].upper())
+        value = tokens[0].upper()
+        # Shared with hand_parser.parse_mana_value, so the two parsers reject the same symbols —
+        # for any value this grammar recognizes as mana-shaped in the first place. A bare value
+        # this pattern doesn't match (e.g. "hello") never reaches this parse action at all and
+        # falls through to a plain string comparison instead; that gap is pyparsing-only (this is
+        # the test-only reference parser, not the one serving traffic) and left unfixed, since
+        # closing it means widening the grammar rather than tightening this validator.
+        # parse_search_query turns a ValueError from a parse action into a query-level parse error.
+        invalid = first_invalid_mana_symbol(value)
+        if invalid is not None:
+            msg = f"Invalid mana symbol {invalid!r}"
+            raise ValueError(msg)
+        return ManaValueNode(value)
 
     mana_value = mixed_mana_pattern.set_parse_action(make_mana_value_node)
 
+    def make_mana_quoted_value_node(tokens: list[str]) -> ManaValueNode:
+        """Create a ManaValueNode for a quoted mana value.
+
+        Quoting a value is just an alternate way to type it, not an opt-out of
+        make_mana_value_node's alphabet check — the generic quoted_string element used by every
+        other attribute skips that check entirely, which let 'mana:"q"' through as an unvalidated
+        StringValueNode that resolved to an empty cost dict and matched every card.
+        """
+        return make_mana_value_node(tokens)
+
+    mana_quoted_value = (QuotedString('"', esc_char="\\") | QuotedString("'", esc_char="\\")).set_parse_action(
+        make_mana_quoted_value_node,
+    )
+
     return {
         "mana_value": mana_value,
+        "mana_quoted_value": mana_quoted_value,
         "mixed_mana_pattern": mixed_mana_pattern,
     }
 
@@ -312,6 +340,7 @@ def create_all_condition_parsers(basic_parsers: dict, mana_parsers: dict, color_
     lparen = basic_parsers["lparen"]
     rparen = basic_parsers["rparen"]
     mana_value = mana_parsers["mana_value"]
+    mana_quoted_value = mana_parsers["mana_quoted_value"]
     color_value = color_parsers["color_value"]
 
     numeric_attr_word = create_attribute_parser(ParserClass.NUMERIC)
@@ -341,7 +370,7 @@ def create_all_condition_parsers(basic_parsers: dict, mana_parsers: dict, color_
     unified_numeric_comparison = numeric_comparison_lhs + DEFAULT_OPERATORS + numeric_comparison_rhs
     unified_numeric_comparison.set_parse_action(make_binary_operator_node)
 
-    mana_value_or_string = mana_value | quoted_string | string_value_word
+    mana_value_or_string = mana_value | mana_quoted_value | string_value_word
     mana_condition = create_condition_parser(mana_attr_word, mana_value_or_string)
 
     color_condition = create_condition_parser(color_attr_word, color_value | quoted_string)
@@ -602,9 +631,15 @@ def _get_implicit_and_tokenizer() -> ParserElement:
     simple_mana_symbol = Regex(r"[0-9WUBRGCXYZwubrgcxyz]")
     mana_tok = Combine(OneOrMore(curly_mana_symbol | simple_mana_symbol)).set_parse_action(lambda t: t[0])
 
+    # A regex only opens in value position, so it is matched as a unit with the comparison operator
+    # that precedes it (emitting both tokens). A '/' anywhere else falls through to arithmetic_tok.
+    # Mirrors the lexer's rule in hand_parser.tokenize — without it the greedy QuotedString("/")
+    # swallows "2>1 name:" as a pattern in "power/2>1 name:/a/" (#908).
+    regex_after_op = comparison_tok + regex_raw
+
     one_token = (
         quoted_raw
-        | regex_raw
+        | regex_after_op
         | lparen_tok
         | rparen_tok
         | and_tok
