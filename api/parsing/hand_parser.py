@@ -12,7 +12,8 @@ from dataclasses import dataclass
 from enum import Enum, auto
 
 from api.parsing.card_query_nodes import CardAttributeNode, CardBinaryOperatorNode, ExactNameNode
-from api.parsing.db_info import ALIAS_TO_FIELD_INFOS, COLOR_NAME_TO_CODE, ParserClass
+from api.parsing.colors import COLOR_ALIAS_TO_CODES
+from api.parsing.db_info import ALIAS_TO_FIELD_INFOS, ParserClass
 from api.parsing.mana_symbols import first_invalid_mana_symbol
 from api.parsing.nodes import (
     AndNode,
@@ -56,7 +57,7 @@ _BANG_ALIAS_CLASSES: frozenset[ParserClass] = frozenset(
     {ParserClass.COLOR, ParserClass.MANA, ParserClass.RARITY, ParserClass.YEAR, ParserClass.DATE}
 )
 
-_VALID_COLOR_NAMES: frozenset[str] = frozenset(COLOR_NAME_TO_CODE)
+_VALID_COLOR_NAMES: frozenset[str] = frozenset(COLOR_ALIAS_TO_CODES)
 _COLOR_LETTERS: frozenset[str] = frozenset("wubrgcWUBRGC")
 _MIN_MTG_YEAR: int = 1992
 _MAX_YEAR: int = 2040
@@ -735,11 +736,25 @@ class Parser:
             self.consume()
             return StringValueNode(str(tok.value))
         if tok.type == TT.WORD:
+            self.consume()
             val = str(tok.value)
+            # The four-colour names are HYPHENATED (`yore-tiller`, `witch-maw`), and `-` is not a
+            # word-continuation character, so the lexer hands this WORD MINUS WORD. Same greedy
+            # hyphen-continuation rule parse_text_value uses (no space on either side) -- glue
+            # first, validate once at the end, rather than checking membership before consuming.
+            # WORD-only (not NUMBER, unlike parse_text_value's continuation): a color value is
+            # never numeric, so `c:w-1` still stops at `w` and leaves `-1` for whatever comes next.
+            while (
+                self.peek().type == TT.MINUS
+                and not self.peek().space_before
+                and self.peek(1).type == TT.WORD
+                and not self.peek(1).space_before
+            ):
+                self.consume()
+                val += "-" + str(self.consume().value)
             if val.lower() not in _VALID_COLOR_NAMES and not all(c in _COLOR_LETTERS for c in val):
                 msg = f"Invalid color value {val!r} at position {tok.pos}"
                 raise ParseError(msg)
-            self.consume()
             return StringValueNode(val)
         msg = f"Expected color value, got {tok.value!r} at position {tok.pos}"
         raise ParseError(msg)
