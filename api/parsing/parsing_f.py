@@ -5,6 +5,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 from api.parsing.hand_parser import parse_query as _parse_query
+from api.parsing.query_budget import check_query_byte_length
 from api.parsing.rewrite import rewrite_query
 from api.parsing.spans import QUOTE_CHARS, brace_close_index, find_close_index, opens_regex
 
@@ -88,7 +89,7 @@ def balance_partial_query(query: str) -> str:
     return query + span_suffix + ")" * open_parens
 
 
-def parse_scryfall_query(query: str) -> Query:
+def parse_scryfall_query(query: str | None) -> Query:
     """Parse a Scryfall search query into a card-specific AST.
 
     Args:
@@ -97,6 +98,8 @@ def parse_scryfall_query(query: str) -> Query:
     Returns:
         A Scryfall-specific Query AST.
     """
+    if query is not None:
+        check_query_byte_length(query)
     # parse => transform => rest: the whole rewrite pipeline runs on the common AST at this shared
     # seam, so it applies identically regardless of which parser _parse_query is.
     return rewrite_query(_parse_query(query))
