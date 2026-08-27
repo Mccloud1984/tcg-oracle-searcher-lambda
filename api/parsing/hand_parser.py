@@ -29,7 +29,7 @@ from api.parsing.nodes import (
     TrueNode,
     flatten_nested_operations,
 )
-from api.parsing.query_budget import MAX_GROUP_DEPTH, QueryBudgetExceeded, check_query_byte_length
+from api.parsing.query_budget import MAX_GROUP_DEPTH, QueryBudgetExceeded
 from api.parsing.spans import QUOTE_CHARS, brace_close_index, find_close_index, unescape
 
 # ── Alias → parser-class lookup ──────────────────────────────────────────────
@@ -816,15 +816,10 @@ class Parser:
 # ── entry point ───────────────────────────────────────────────────────────────
 
 
-def parse_query(src: str | None) -> Query:
-    """Parse a Scryfall query string into a Query AST.
-
-    Drop-in replacement for parse_search_query; handles implicit AND natively
-    without a separate preprocessing pass.
-    """
+def parse_str_to_query(src: str | None) -> Query:
+    """Parse a query string into a Query AST (lex + parse + flatten only)."""
     if not src or not src.strip():
         return Query(TrueNode())
-    check_query_byte_length(src)
     try:
         tokens = tokenize(src)
     except LexError as exc:
