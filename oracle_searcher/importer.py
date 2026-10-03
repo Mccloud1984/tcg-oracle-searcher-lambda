@@ -299,8 +299,17 @@ def _mask(colors: Iterable[str] | None) -> int:
 
 
 def _is_extra(card: dict[str, Any]) -> bool:
-    """True for what Scryfall's own search hides by default (see `_HIDDEN_LAYOUTS` above)."""
-    return card.get("layout") in _HIDDEN_LAYOUTS or card.get("set_type") == "memorabilia"
+    """True for what Scryfall's own search hides by default (see `_HIDDEN_LAYOUTS` above).
+
+    `set_type == "funny"` (docs/PLAN-2026-10-03.md, Purple item 4): Scryfall's docs
+    (scryfall.com/docs/syntax, "Extra Cards and Funny Cards", checked 2026-10-03) -- "Un-cards,
+    holiday cards, and other funny cards are findable with is:funny or mentioning their set" --
+    the same "name its type/set to reveal it" pattern already applied to vanguard/scheme/
+    memorabilia above. This is a documented, not a guessed, rule; it does not fully close the
+    broader default-visible-count gap against Scryfall (see the Purple section of
+    docs/PLAN-2026-10-03.md for the counting-query evidence and the residual left open).
+    """
+    return card.get("layout") in _HIDDEN_LAYOUTS or card.get("set_type") in ("memorabilia", "funny")
 
 
 def _is_tags(card: dict[str, Any], mana_cost_text: str | None, oracle_text: str | None) -> list[str]:

@@ -164,6 +164,12 @@ def test_oracle_tag_ancestors_are_included(conn: sqlite3.Connection) -> None:
         ("Koth of the Hammer Emblem", True),  # layout: emblem
         ("Brightglass Gearhulk // Brightglass Gearhulk", True),  # layout: art_series (set_type memorabilia)
         ("Surprise!", True),  # layout: front_card (set_type memorabilia)
+        # set_type funny (Un-sets, holiday cards): Scryfall's own docs (scryfall.com/docs/syntax,
+        # checked 2026-10-03), "Extra Cards and Funny Cards": "Un-cards, holiday cards, and other
+        # funny cards are findable with is:funny or mentioning their set" -- i.e. hidden otherwise,
+        # the same "search for their type/set to reveal it" pattern as vanguard/scheme/memorabilia
+        # above (docs/PLAN-2026-10-03.md, Purple item 4).
+        ("Richard Garfield, Ph.D.", True),  # set_type: funny (Unglued)
         ("Lightning Bolt", False),
         ("Jace, Vryn's Prodigy // Jace, Telepath Unbound", False),
     ],
