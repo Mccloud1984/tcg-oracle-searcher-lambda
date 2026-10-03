@@ -50,8 +50,14 @@ def _parse_type_line(type_line: str | None) -> tuple[set[str], set[str]]:
         left, _, right = type_line.partition("—")
     else:
         left, right = type_line, ""
-    types = {word for word in left.split() if word in CARD_SUPERTYPES or word in CARD_TYPES}
-    subtypes = set(right.split())
+    left_words = left.split()
+    types = {word for word in left_words if word in CARD_SUPERTYPES or word in CARD_TYPES}
+    # A left-side word Sylvan doesn't recognise as a type/supertype (Token, Emblem, Vanguard, ...)
+    # is exactly what `sqlite_compiler._compile_type_subtype` routes a `t:` search for that value
+    # to card_subtypes too (title() not in CARD_SUPERTYPES | CARD_TYPES) -- so it has to land in
+    # subtypes here as well, or `t:token` would have nothing in either column to find.
+    unrecognized_left = {word for word in left_words if word not in types}
+    subtypes = unrecognized_left | set(right.split())
     return types, subtypes
 
 
