@@ -407,6 +407,18 @@ def _array_membership_sql(column: str, operator: str, value: str, params: list[A
 # ── free text (name, oracle text, flavor text, artist, set/layout/border/watermark, …) ──────
 
 
+def _text_search_column(attr: str) -> str:
+    """The column a search on `attr` actually reads.
+
+    oracle_text redirects to its reminder-free twin (schema.py's `oracle_text_search`, built by
+    importer._strip_reminder_text) because Scryfall's `o:`/`oracle:` excludes reminder text
+    (scryfall.com/docs/syntax: "Use the fo: or fulloracle: operator to search the full Oracle
+    text, which includes reminder text"), for every operator -- `:`/LIKE, regex, and the rare
+    `o=`/`o!=`/etc. equality forms alike.
+    """
+    return "oracle_text_search" if attr == "oracle_text" else attr
+
+
 def _compile_text(attr: str, operator: str, rhs: QueryNode, params: list[Any]) -> str:
     if isinstance(rhs, RegexValueNode):
         return _compile_regex(attr, rhs, params)
@@ -435,11 +447,11 @@ def _compile_text(attr: str, operator: str, rhs: QueryNode, params: list[Any]) -
     elif attr == "card_set_code":
         compare_value = value.lower()
     params.append(compare_value)
-    return f"(card.{attr} {operator} ?)"
+    return f"(card.{_text_search_column(attr)} {operator} ?)"
 
 
 def _text_pattern_sql(attr: str, value: str, params: list[Any]) -> str:
-    column = attr
+    column = _text_search_column(attr)
     search_value = value
     if attr == "card_name":
         column = "card_name_folded"
@@ -455,9 +467,9 @@ def _escape_like(value: str) -> str:
 
 
 def _compile_regex(attr: str, rhs: RegexValueNode, params: list[Any]) -> str:
-    column = attr
     if attr not in _PATTERN_TEXT_COLUMNS and attr != "card_name":
         msg = f"regex matching on {attr!r} is not supported"
         raise Unsupported(msg)
+    column = _text_search_column(attr)
     params.append(rhs.value)
     return f"(card.{column} REGEXP ?)"

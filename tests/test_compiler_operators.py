@@ -22,6 +22,7 @@ MANA_CRYPT = "Mana Crypt"  # banned:commander
 JACE_VRYN = "Jace, Vryn's Prodigy // Jace, Telepath Unbound"  # transform, face2 loyalty 5
 TARMOGOYF_TOKEN = "Tarmogoyf"  # layout token
 GRIST = "Grist, the Hunger Tide"  # Legendary Planeswalker, keywords=['Mill']
+BARREN_MOOR = "Barren Moor"  # cycling land; "Draw a card" appears only in its cycling reminder
 
 
 def _match(conn: sqlite3.Connection, query_text: str) -> set[int]:
@@ -179,6 +180,28 @@ def test_bare_year_date_query_uses_a_range_not_literal_equality() -> None:
     card_id = insert_named_card(conn, LLANOWAR_ELVES, released_at="2024-06-01")
     assert _match(conn, "date:2024") == {card_id}
     assert _match(conn, "date:2023") == set()
+
+
+# ── reminder text excluded from o:/oracle: (Purple item 1) ──────────────────────────────────
+
+
+def test_oracle_text_search_ignores_reminder_text() -> None:
+    r"""`o:` must not match a word that appears only inside a reminder-text parenthetical.
+
+    Barren Moor's oracle text is "This land enters tapped.\n{T}: Add {B}.\nCycling {B} ({B},
+    Discard this card: Draw a card.)" -- "draw a card" appears only inside the cycling reminder.
+    Scryfall's docs (scryfall.com/docs/syntax): o:/oracle: search "the current Oracle text", and
+    "fo:/fulloracle:" is the separate operator that "includes reminder text" -- so o:draw must not
+    find it. Before this fix, our oracle_text column kept reminder text, so `o:draw` and
+    `o:"draw a card"` wrongly matched (scripts/parity.py's `only_ours` list for `o:draw` against a
+    real build named this exact card).
+    """
+    conn, ids = _db_with(BARREN_MOOR, LLANOWAR_ELVES)
+    assert _match(conn, "o:draw") == set()
+    assert _match(conn, 'o:"draw a card"') == set()
+    # Real, non-reminder text on the card must still match.
+    assert _match(conn, "o:cycling") == {ids[BARREN_MOOR]}
+    assert _match(conn, "o:tapped") == {ids[BARREN_MOOR]}
 
 
 # ── regex (registered REGEXP function) ──────────────────────────────────────────────────────

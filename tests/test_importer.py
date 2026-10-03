@@ -106,6 +106,21 @@ def test_legalities_stored_as_given(conn: sqlite3.Connection) -> None:
     assert legalities["commander"] == "legal"
 
 
+def test_oracle_text_search_strips_reminder_text(conn: sqlite3.Connection) -> None:
+    """oracle_text_search drops reminder text that oracle_text (full) keeps (Purple item 1).
+
+    Barren Moor's only mention of drawing is inside its cycling reminder -- Scryfall's `o:`
+    excludes reminder text (scryfall.com/docs/syntax), so the column `o:` compiles against must
+    not have it, while the full oracle_text column (kept for anything needing the real printed
+    text) still does.
+    """
+    row = card_row(conn, "Barren Moor")
+    assert "Draw a card" in row["oracle_text"]
+    assert "Draw a card" not in row["oracle_text_search"]
+    assert "Cycling" in row["oracle_text_search"]
+    assert "enters tapped" in row["oracle_text_search"]
+
+
 def test_preview_card_is_present(conn: sqlite3.Connection) -> None:
     """A card whose chosen printing is a future preview (released_at 2026-11-13) is still imported."""
     row = card_row(conn, "Island")

@@ -14,11 +14,17 @@ Value conventions:
   the faces. Numeric face values (power, toughness, loyalty) live per face in `card_faces`; a numeric predicate
   matches when the card's own value or any face's value matches.
 - Prices and numbers that Scryfall gives as strings ("1.50", "*", "X") are stored as REAL when they parse, else NULL.
+- `oracle_text_search` holds `oracle_text` with reminder text (the parenthesised explanations) stripped: Scryfall's
+  `o:`/`oracle:` searches the current Oracle text WITHOUT reminder text (its own docs: "Use the fo: or fulloracle:
+  operator to search the full Oracle text, which includes reminder text" -- scryfall.com/docs/syntax, checked
+  2026-10-03), so `o:` compiles against this column, never `oracle_text` itself. `fo:`/`fulloracle:` aren't
+  parseable attributes here (Sylvan's hand parser has no alias for them), so `oracle_text` is kept only as the
+  full-text source `oracle_text_search` is derived from.
 """
 
 import sqlite3
 
-SCHEMA_VERSION = 1
+SCHEMA_VERSION = 2
 
 COLOR_BITS = {"W": 1, "U": 2, "B": 4, "R": 8, "G": 16, "C": 32}
 
@@ -32,6 +38,7 @@ CREATE TABLE cards (
     card_types            TEXT NOT NULL,        -- JSON array, union over faces
     card_subtypes         TEXT NOT NULL,        -- JSON array, union over faces
     oracle_text           TEXT,                 -- see the module docstring for multi-face cards
+    oracle_text_search    TEXT,                 -- oracle_text with reminder text stripped; what o: searches
     flavor_text           TEXT,
     mana_cost_text        TEXT,                 -- as printed, faces joined with " // "
     mana_cost_jsonb       TEXT,                 -- JSON object, Sylvan's mana_cost_str_to_dict of the front face

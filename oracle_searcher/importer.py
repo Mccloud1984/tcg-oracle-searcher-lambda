@@ -69,6 +69,14 @@ _KEEP_URI_FIELDS = frozenset({"image_uris", "purchase_uris", "scryfall_uri"})
 _HYBRID_MANA_RE = re.compile(r"\{[2CWUBRG]/[WUBRG]")
 _PHYREXIAN_MANA_RE = re.compile(r"/P\}")
 
+# A single non-nested parenthesised span. Reminder text is never otherwise parenthesised in
+# Oracle text, so repeatedly stripping innermost spans (see `_strip_reminder_text`) removes
+# reminder text exactly, including the handful of real cards with reminder text nested two or
+# three deep (e.g. "Super haste (This may attack the turn before you cast it. (You may put...))").
+_PAREN_SPAN_RE = re.compile(r"\([^()]*\)")
+_RUN_OF_SPACES_RE = re.compile(r"[ \t]+")
+_SPACE_AROUND_NEWLINE_RE = re.compile(r" *\n *")
+
 
 # Ported from Sylvan's api.admin_resource.BOOLEAN_IS_TAGS (a SQL expression per tag, evaluated
 # against raw_card_blob in Postgres) to direct predicates over the raw Scryfall dict, evaluated
@@ -173,6 +181,29 @@ def _combined_oracle_text(card: dict[str, Any]) -> str | None:
     return "\n//\n".join(face.get("oracle_text") or "" for face in faces)
 
 
+def _strip_reminder_text(text: str | None) -> str | None:
+    """Oracle text with every parenthesised reminder span removed, matching Scryfall's `o:`.
+
+    Scryfall's docs (scryfall.com/docs/syntax, checked 2026-10-03): "This keyword [o:] usually
+    checks the current Oracle text for cards... Use the fo: or fulloracle: operator to search the
+    full Oracle text, which includes reminder text." So `o:` excludes it. Real example: Barren
+    Moor's only mention of "draw a card" is inside its cycling reminder ("Cycling {B} ({B},
+    Discard this card: Draw a card.)") -- Scryfall's `o:draw` does not return it (cached
+    tests/fixtures/scryfall/ responses only list it as `only_ours` in scripts/parity.py's output
+    before this fix), confirming the docs' claim against real search results, not just the text.
+    """
+    if text is None:
+        return None
+    stripped = text
+    previous = None
+    while stripped != previous:
+        previous = stripped
+        stripped = _PAREN_SPAN_RE.sub("", stripped)
+    stripped = _RUN_OF_SPACES_RE.sub(" ", stripped)
+    stripped = _SPACE_AROUND_NEWLINE_RE.sub("\n", stripped)
+    return stripped.strip()
+
+
 def _combined_mana_cost_text(card: dict[str, Any]) -> str | None:
     if card.get("mana_cost") is not None:
         return card["mana_cost"]
@@ -264,6 +295,7 @@ def _build_card_row(
         "card_types": json.dumps(card_types),
         "card_subtypes": json.dumps(card_subtypes),
         "oracle_text": oracle_text,
+        "oracle_text_search": _strip_reminder_text(oracle_text),
         "flavor_text": card.get("flavor_text") or "",
         "mana_cost_text": mana_cost_text,
         "mana_cost_jsonb": json.dumps(mana_cost_str_to_dict(front_mana_cost)),
@@ -396,6 +428,7 @@ _CARD_COLUMNS = [
     "card_types",
     "card_subtypes",
     "oracle_text",
+    "oracle_text_search",
     "flavor_text",
     "mana_cost_text",
     "mana_cost_jsonb",
