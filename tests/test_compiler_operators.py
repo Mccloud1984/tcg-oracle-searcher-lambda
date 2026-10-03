@@ -108,8 +108,15 @@ def test_type_query_routes_unknown_value_to_card_subtypes() -> None:
     assert _match(conn, "t:elf") == {ids[LLANOWAR_ELVES]}
 
 
-def test_type_query_routes_extra_layout_word_to_subtypes_too() -> None:
-    """`t:token` must find a word Sylvan's CARD_TYPES set doesn't recognise as a type."""
+def test_type_query_routes_extra_layout_word_to_types_not_subtypes() -> None:
+    """`t:token` must find a word Sylvan's CARD_TYPES set doesn't recognise as a type.
+
+    The importer's `parse_type_line` puts every word before the em dash in `card_types`
+    regardless of whether Sylvan recognises it as a real type -- a token's type line is "Token
+    Creature" with no dash at all, so "Token" lands in `card_types`, never `card_subtypes`
+    (docs/PLAN-2026-10-03.md, Purple item 2). Routing `t:token` to `card_subtypes` instead finds
+    nothing against a real build, where Scryfall finds 821.
+    """
     conn, ids = _db_with(TARMOGOYF_TOKEN, LLANOWAR_ELVES)
     assert _match(conn, "t:token") == {ids[TARMOGOYF_TOKEN]}
 

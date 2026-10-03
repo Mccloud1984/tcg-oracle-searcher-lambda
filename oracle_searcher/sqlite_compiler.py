@@ -337,13 +337,24 @@ def _compile_legality(lhs: CardAttributeNode, operator: str, rhs: QueryNode, par
 
 # ── card_types / card_subtypes (ambiguous `t:`/`type:` alias resolves per value) ────────────
 
+# Type-line words the importer's `parse_type_line` (api.card_processing, reused verbatim) puts in
+# card_types because they sit before the type line's em dash, even though Sylvan's CARD_TYPES /
+# CARD_SUPERTYPES don't recognise them as a real card type -- e.g. a token's type line is "Token
+# Creature — Elf" and an emblem's is just "Emblem" (schema.py: card_types/card_subtypes are
+# parsed the same way as the importer parses them). Confirmed against the real 2026-10-03 build
+# (docs/PLAN-2026-10-03.md, Purple item 2): `card_types` held `["Token", "Creature"]` for every
+# token row and `["Emblem"]` for every emblem row, never in card_subtypes. Routing `t:token` to
+# card_subtypes instead (the pre-fix behaviour) found zero rows against a real build, where
+# Scryfall finds 821. Also the five is_extra reveal words `search.py` already special-cases.
+EXTRA_TYPE_VALUES = frozenset({"Token", "Emblem", "Vanguard", "Plane", "Phenomenon", "Scheme"})
+
 
 def _compile_type_subtype(operator: str, rhs: QueryNode, params: list[Any]) -> str:
     if not isinstance(rhs, StringValueNode):
         msg = f"a non-string type value ({rhs!r}) is not supported"
         raise Unsupported(msg)
     value = rhs.value.strip().title()
-    column = "card_types" if value in CARD_SUPERTYPES | CARD_TYPES else "card_subtypes"
+    column = "card_types" if value in CARD_SUPERTYPES | CARD_TYPES | EXTRA_TYPE_VALUES else "card_subtypes"
     return _array_membership_sql(column, operator, value, params)
 
 

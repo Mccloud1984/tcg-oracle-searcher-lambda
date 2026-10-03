@@ -13,7 +13,7 @@ from typing import TYPE_CHECKING, Any, Literal
 from api.parsing import parse_scryfall_query
 from api.parsing.card_query_nodes import CardAttributeNode, CardBinaryOperatorNode
 from api.parsing.nodes import AndNode, NotNode, OrNode, StringValueNode
-from oracle_searcher.sqlite_compiler import Unsupported, compile_query
+from oracle_searcher.sqlite_compiler import EXTRA_TYPE_VALUES, Unsupported, compile_query
 
 if TYPE_CHECKING:
     import sqlite3
@@ -57,7 +57,8 @@ _NULLS_LAST_ORDERS = frozenset({"edhrec", "usd"})
 # website also accepts `include:extras` to reveal everything, but Sylvan's hand parser has no
 # `include` alias (api/parsing/db_info.py) -- that spelling isn't parseable here, so it isn't
 # handled as a reveal trigger; a caller wanting it needs its own, separate is_extra override.
-EXTRA_TYPE_VALUES = frozenset({"Token", "Emblem", "Vanguard", "Plane", "Phenomenon", "Scheme"})
+# Shared with sqlite_compiler.EXTRA_TYPE_VALUES (same words, same reason: these are exactly the
+# type-line words the importer stores in card_types despite Sylvan not recognising them as types).
 
 
 @dataclass(frozen=True)
