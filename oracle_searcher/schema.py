@@ -1,4 +1,4 @@
-"""The SQLite card file's schema: the contract between the importer (which writes it) and the search (which reads it).
+r"""The SQLite card file's schema: the contract between the importer (which writes it) and the search (which reads it).
 
 One row in `cards` per Scryfall oracle card (the `oracle_cards` bulk file), so a search returns each card once, as
 Scryfall's default `unique=cards` does. Column names follow Sylvan Librarian's (`api/parsing/db_info.py`) so its
@@ -15,6 +15,8 @@ Value conventions:
   matches when the card's own value or any face's value matches.
 - Prices and numbers that Scryfall gives as strings ("1.50", "*", "X") are stored as REAL when they parse, else NULL.
 """
+
+import sqlite3
 
 SCHEMA_VERSION = 1
 
@@ -93,7 +95,7 @@ CREATE INDEX cards_identity ON cards(card_color_identity);
 """
 
 
-def create_schema(conn) -> None:
+def create_schema(conn: sqlite3.Connection) -> None:
     """Creates every table and index on an empty database, and records the schema version."""
     conn.executescript(DDL)
     conn.execute("INSERT INTO meta(key, value) VALUES ('schema_version', ?)", (str(SCHEMA_VERSION),))
