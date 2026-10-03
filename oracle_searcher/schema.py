@@ -70,7 +70,7 @@ CREATE TABLE cards (
     price_eur             REAL,
     price_tix             REAL,
     game_changer          INTEGER NOT NULL DEFAULT 0,
-    is_extra              INTEGER NOT NULL DEFAULT 0,  -- 1 for what Scryfall hides unless asked (tokens, emblems, art cards, ...)
+    is_extra              INTEGER NOT NULL DEFAULT 0,  -- 1 for what Scryfall hides unless asked (tokens, emblems, funny cards, ...)
     card_json             TEXT NOT NULL         -- the Scryfall card object, trimmed (see importer), returned as is
 );
 
