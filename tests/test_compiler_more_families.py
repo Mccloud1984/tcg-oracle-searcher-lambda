@@ -53,13 +53,17 @@ def test_frame_membership() -> None:
 def test_plain_is_tag_not_in_derived_table_compiles_and_matches() -> None:
     """Confirm the literal card_is_tags path, not just rewrite.py's derived-expansion subtrees.
 
-    `is:spell` has no entry in rewrite._DERIVED_EXPANSIONS, so it reaches the compiler as a
-    plain card_is_tags leaf.
+    `is:gamechanger` has no entry in rewrite._DERIVED_EXPANSIONS (unlike `is:spell`, which
+    oracle_searcher/is_tag_rules.py's teal lane turned into a `-t:land` rewrite -- see
+    docs/is-tags.md): it's populated directly into card_is_tags at import time
+    (`oracle_searcher.importer.IS_TAG_CHECKS`), so it reaches the compiler as a plain
+    card_is_tags leaf and must still be in `is_tag_rules.KNOWN_IS_TAGS` or this would raise
+    Unsupported instead of matching.
     """
     conn = make_db()
-    tagged_id = insert_named_card(conn, SWORDS, card_is_tags='["spell"]')
+    tagged_id = insert_named_card(conn, SWORDS, card_is_tags='["gamechanger"]')
     insert_named_card(conn, LLANOWAR_ELVES, card_is_tags="[]")
-    assert _match(conn, "is:spell") == {tagged_id}
+    assert _match(conn, "is:gamechanger") == {tagged_id}
 
 
 # ── AND/OR grouping (implicit AND binds tighter than explicit "or") ────────────────────────────

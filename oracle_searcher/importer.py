@@ -69,6 +69,16 @@ _KEEP_URI_FIELDS = frozenset({"image_uris", "purchase_uris", "scryfall_uri"})
 _HYBRID_MANA_RE = re.compile(r"\{[2CWUBRG]/[WUBRG]")
 _PHYREXIAN_MANA_RE = re.compile(r"/P\}")
 
+# Both spellings of the keyword grant Commander partner eligibility ("any flavor of Commander
+# Partner mechanic", per Scryfall's own syntax docs). Sylvan's admin_resource.py checks only the
+# literal "Partner" keyword on the stated assumption that "Partner with <name>" cards carry a
+# plain "Partner" keyword alongside it -- false against the 2026-10-03 bulk file, which has
+# "Partner with" as its own distinct keyword string on 54 cards that carry no plain "Partner"
+# (verified: `grep`-equivalent scan of oracle_cards.jsonl.gz's `keywords` arrays). Checking only
+# "Partner" undercounts is:partner at 143 vs. live 228; adding "Partner with" gets to 197 -- the
+# residual is worth a note in docs/is-tags.md, not chased further here.
+_PARTNER_KEYWORDS = frozenset({"Partner", "Partner with"})
+
 
 # Ported from Sylvan's api.admin_resource.BOOLEAN_IS_TAGS (a SQL expression per tag, evaluated
 # against raw_card_blob in Postgres) to direct predicates over the raw Scryfall dict, evaluated
@@ -84,6 +94,18 @@ def _promo_types(card: dict[str, Any]) -> set[str]:
 
 def _finishes(card: dict[str, Any]) -> set[str]:
     return set(card.get("finishes") or [])
+
+
+def _has_color_indicator(card: dict[str, Any]) -> bool:
+    """True if the card (or any face) carries a printed color indicator (`has:indicator`).
+
+    A card-level characteristic (the ability granting it doesn't change by printing), unlike
+    the rest of this module's printing-booleans -- verified close to live `has:indicator`
+    (366 here vs. 362 live, 2026-10-03; docs/is-tags.md).
+    """
+    if card.get("color_indicator"):
+        return True
+    return any(face.get("color_indicator") for face in card.get("card_faces") or [])
 
 
 IS_TAG_CHECKS: dict[str, Any] = {
@@ -102,6 +124,7 @@ IS_TAG_CHECKS: dict[str, Any] = {
     "glossy": lambda c, *_: "glossy" in _promo_types(c),
     "hires": lambda c, *_: bool(c.get("highres_image")),
     "hybrid": lambda _c, mana_cost_text, _o: bool(_HYBRID_MANA_RE.search(mana_cost_text or "")),
+    "indicator": lambda c, *_: _has_color_indicator(c),
     "instore": lambda c, *_: "instore" in _promo_types(c),
     "intro_pack": lambda c, *_: "intropack" in _promo_types(c),
     "judge_gift": lambda c, *_: "judgegift" in _promo_types(c),
@@ -109,7 +132,7 @@ IS_TAG_CHECKS: dict[str, Any] = {
     "masterpiece": lambda c, *_: c.get("set_type") == "masterpiece",
     "media_insert": lambda c, *_: "mediainsert" in _promo_types(c),
     "nonfoil": lambda c, *_: bool(c.get("nonfoil")),
-    "partner": lambda c, *_: "Partner" in set(c.get("keywords") or []),
+    "partner": lambda c, *_: bool(_PARTNER_KEYWORDS & set(c.get("keywords") or [])),
     "phyrexian": lambda _c, mana_cost_text, oracle_text: bool(
         _PHYREXIAN_MANA_RE.search((mana_cost_text or "") + (oracle_text or ""))
     ),
