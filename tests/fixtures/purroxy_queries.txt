@@ -1,0 +1,39 @@
+(legal:commander or date>2026-10-03)
+(o:"destroy all" or o:"each creature" or o:"all creatures get -")
+(o:"destroy target" or o:"exile target creature" or o:"deals damage to any target")
+(o:"draw a card" or o:"draw two cards" or o:"draw cards")
+(o:"search your library" o:planeswalker)
+is:commander
+keyword:flying or keyword:menace or keyword:unblockable
+keyword:hexproof or keyword:indestructible or keyword:shroud
+legal:commander
+o:"create" o:"Jace"
+o:"duplicate" o:token
+o:"emblem" o:"Jace"
+o:"loyalty counter"
+o:"twice that many" o:token
+o:add o:mana
+o:counter o:spell
+o:destroy o:all o:creature
+o:destroy or o:exile
+o:draw
+o:draw o:card
+o:exile o:return o:battlefield
+o:gain o:life
+o:graveyard o:battlefield
+o:land o:onto or (t:creature o:add o:mana)
+o:proliferate
+o:return o:graveyard
+o:search o:library
+t:cat
+t:creature c:B
+t:creature cmc<=2
+t:creature cmc>=5 pow>=4
+t:creature keyword:flying pow>=4
+t:creature pow>=5
+t:dragon
+t:elf
+t:ooze
+t:ooze o:copy
+t:token
+t:zombie t:creature
