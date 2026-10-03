@@ -236,8 +236,7 @@ def read_sql(filename: str) -> str:
         return filehandle.read().strip()
 
 
-class IntArray(list):
-    """A list that psycopg sends as a native PostgreSQL integer array, not JSONB."""
+from api.parsing.int_array import IntArray  # noqa: E402  (moved to parsing so the parser needs no database driver)
 
 
 def maybe_json(v: object) -> object:

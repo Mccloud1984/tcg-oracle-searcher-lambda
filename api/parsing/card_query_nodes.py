@@ -32,7 +32,7 @@ from api.parsing.nodes import (
     ValueNode,
     _node_to_json,
 )
-from api.utils.db_utils import IntArray
+from api.parsing.int_array import IntArray
 
 """
 
