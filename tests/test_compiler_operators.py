@@ -23,6 +23,7 @@ JACE_VRYN = "Jace, Vryn's Prodigy // Jace, Telepath Unbound"  # transform, face2
 TARMOGOYF_TOKEN = "Tarmogoyf"  # layout token
 GRIST = "Grist, the Hunger Tide"  # Legendary Planeswalker, keywords=['Mill']
 BARREN_MOOR = "Barren Moor"  # cycling land; "Draw a card" appears only in its cycling reminder
+ACCURSED_MARAUDER = "Accursed Marauder"  # "each player ... creature" -- never adjacent "each creature"
 
 
 def _match(conn: sqlite3.Connection, query_text: str) -> set[int]:
@@ -153,6 +154,21 @@ def test_loyalty_face_exists_guard_is_real() -> None:
 def test_oracle_text_finds_text_only_on_back_face() -> None:
     conn, ids = _db_with(JACE_VRYN, LLANOWAR_ELVES)
     assert _match(conn, 'o:"exile Jace"') == {ids[JACE_VRYN]}
+
+
+def test_quoted_phrase_requires_adjacent_words() -> None:
+    """A quoted o: phrase must match as one contiguous substring, not "words in order, anything between".
+
+    Accursed Marauder's text is "When this creature enters, each player sacrifices a nontoken
+    creature of their choice." -- it contains "each" and, much later, "creature" again, but never
+    the adjacent phrase "each creature". Found via scripts/parity.py's suffix-corpus run: a
+    `(o:"each creature" or ...)`-style query ran ~3x Scryfall's total even after the reminder-text
+    fix (item 1), because splitting a quoted value into words and wildcarding *between* them
+    (the pre-fix pattern) let any text separate them.
+    """
+    conn, ids = _db_with(ACCURSED_MARAUDER, LLANOWAR_ELVES)
+    assert _match(conn, 'o:"each creature"') == set()
+    assert _match(conn, 'o:"each player"') == {ids[ACCURSED_MARAUDER]}
 
 
 # ── keywords ──────────────────────────────────────────────────────────────────────────────────

@@ -451,13 +451,23 @@ def _compile_text(attr: str, operator: str, rhs: QueryNode, params: list[Any]) -
 
 
 def _text_pattern_sql(attr: str, value: str, params: list[Any]) -> str:
+    """A `:` text search: `value` must appear as one contiguous (whitespace-normalised) substring.
+
+    Scryfall's `o:"each creature"` means the literal adjacent phrase, not "each" and "creature"
+    appearing anywhere in that order -- a quoted value only ever reaches here with internal
+    whitespace when the user wrote a multi-word phrase (the parser splits an unquoted bare query
+    into separate single-word leaves), so every space in `value` is part of the phrase, not a
+    place text may vary. Found via scripts/parity.py (Purple item 6's harness): wildcarding
+    *between* words let `o:"each creature"` match Accursed Marauder's "each player sacrifices a
+    nontoken creature", which has both words but never adjacent.
+    """
     column = _text_search_column(attr)
     search_value = value
     if attr == "card_name":
         column = "card_name_folded"
         search_value = fold_accents(value)
-    words = search_value.lower().split()
-    pattern = "%" + "%".join(_escape_like(word) for word in words) + "%" if words else "%"
+    normalized = " ".join(search_value.lower().split())
+    pattern = "%" + _escape_like(normalized) + "%" if normalized else "%"
     params.append(pattern)
     return rf"(lower(card.{column}) LIKE ? ESCAPE '\')"
 
