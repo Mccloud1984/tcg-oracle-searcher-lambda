@@ -123,21 +123,20 @@ _DERIVED_EXPANSIONS: dict[tuple[str, str], str] = {
     ("is", "triland"): "otag:cycle-ala-shardland or otag:cycle-ktk-wedgeland",  # 10, name-verified
     ("is", "triome"): "otag:cycle-iko-triome or otag:cycle-snc-triland",  # 10, name-verified
     # ── Non-land derivables ──────────────────────────────────────────────
-    # Commander eligibility, refined per review: legendary permanents with a
-    # printed toughness (creatures, Vehicles, Spacecraft -- toughness>=0, the
-    # parser-friendly spelling of toughness>-1; no legendary prints negative
-    # toughness and * compares as 0 on both engines) plus Backgrounds, plus
-    # rules text granting eligibility outright, MINUS the commander banlist:
-    # diffing the eligibility shape against Scryfall's is:commander showed it
-    # excludes banned cards (Griselbrand, Golos, Emrakul, Erayo were the
-    # over-catch) while keeping 329 casual not-legal legends. Residual is the
-    # face-evaluation cluster from docs/issues/00713: back-face legendaries
-    # over-match on combined type lines, and face-granted eligibility text
-    # under-matches until faces are searchable.
-    (
-        "is",
-        "commander",
-    ): '((t:legendary (toughness>=0 or t:background)) or o:"can be your commander") -banned:commander',
+    # is:commander: NOT expanded here (deliberately no entry -- see the note below the dict).
+    # Commander eligibility used to be expanded here into the string below, which Scryfall's
+    # is:commander live-diff showed correct enough modulo two residuals this engine's column
+    # semantics can't fix at rewrite time: the expansion worked over the schema's face-UNIONED
+    # columns, matching "the card" when ANY face does, but front-face-only structural checks
+    # need exactly one face (Westvale Abbey // Ormendahl and Invasion of Ikoria over-matched
+    # on their legendary-creature back face); and toughness>=0 assumed "* compares as 0",
+    # true of a Postgres column, not of this SQLite schema's REAL column (* stores as NULL,
+    # so Ashaya/Daxos/Lumra's variable toughness under-matched). oracle_searcher precomputes
+    # "commander" membership at import time instead, from the raw card's front face
+    # (oracle_searcher/importer.py's `_is_commander_eligible`), so it falls through this dict
+    # unexpanded and is read as a plain `is:` leaf, like any other precomputed IS_TAG_CHECKS
+    # entry (test_unimplemented_is_tag_passes_through's pattern). The retired expansion is
+    # preserved in git history (api/parsing/tests/test_rewrite.py's EQUIVALENCES, pre-removal).
     ("is", "companion"): "kw:companion",  # 10, name-verified
     ("is", "class"): "t:class",  # 34, equals Scryfall's paper count exactly
     # is:adventure is LAYOUT semantics by Scryfall's own definition -- it

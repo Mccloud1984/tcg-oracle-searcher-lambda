@@ -94,10 +94,60 @@ def _finishes(card: dict[str, Any]) -> set[str]:
     return set(card.get("finishes") or [])
 
 
+def _commander_front_face(card: dict[str, Any]) -> dict[str, Any]:
+    """The face whose type line and printed toughness decide commander eligibility.
+
+    Comprehensive Rule 712.8/901.5-ish framing: a double-faced permanent's characteristics (for
+    anything checked before it's on the battlefield, like "can this be my commander") come from
+    its front face. Scryfall's is:commander agrees: Westvale Abbey // Ormendahl, Profane Prince
+    (front face Westvale Abbey, a plain Land) and Invasion of Ikoria // Zilortha, Apex of Ikoria
+    (front face a Battle) are both excluded despite a legendary-creature back face (confirmed live
+    2026-10-03: neither is in Scryfall's is:commander results, both are in ours before this fix).
+    """
+    faces = card.get("card_faces") or []
+    return faces[0] if faces else card
+
+
+def _is_commander_eligible(card: dict[str, Any], oracle_text: str | None) -> bool:
+    """True for a card Scryfall's `is:commander` returns: can legally be named a commander.
+
+    Front-face-only structural rule, replacing Sylvan's `is:commander` rewrite-time expansion
+    (`api.parsing.rewrite._DERIVED_EXPANSIONS`, removed in the same change that added this): that
+    expansion worked over the schema's face-UNIONED columns ("a card matches when ANY face
+    matches" -- schema.py), which is right for text/type searches but wrong for a structural
+    eligibility rule that Scryfall evaluates on the front face alone, and it used `toughness>=0`
+    as a proxy for "this permanent prints a toughness" that silently broke on this schema's `*`
+    toughness (stored as NULL, not 0 -- Sylvan's own comment assumed "* compares as 0 on both
+    engines", true of its Postgres column, not of this REAL column). Verified live 2026-10-03:
+    Ashaya, Soul of the Wild / Daxos, Blessed by the Sun / Lumra, Bellow of the Woods (all `*`
+    toughness) are all in Scryfall's is:commander; `toughness>=0` excluded them here.
+
+    Eligible: the front face is a Legendary permanent with a printed toughness field (creatures,
+    Vehicles, Spacecraft -- present even when its value is "*", absent for anything without
+    power/toughness at all) or is a Background; OR the card's oracle text grants eligibility
+    outright ("can be your commander") -- checked on the combined text, since this is a textual
+    grant rather than a structural one and nothing in the 2026-10-03 corpus needs narrowing it to
+    one face. MINUS cards banned as commander (Griselbrand, Golos, Emrakul, Erayo were the
+    over-catch Sylvan's comment recorded from the same structural rule, live-diffed against
+    Scryfall's is:commander: all three legendary creatures above are `legalities.commander ==
+    "banned"`).
+    """
+    front = _commander_front_face(card)
+    type_line = front.get("type_line") or ""
+    is_legendary = "Legendary" in type_line
+    is_background = "Background" in type_line
+    has_printed_toughness = "toughness" in front
+    grants_eligibility = "can be your commander" in (oracle_text or "").lower()
+    structurally_eligible = is_legendary and (has_printed_toughness or is_background)
+    banned_as_commander = (card.get("legalities") or {}).get("commander") == "banned"
+    return (structurally_eligible or grants_eligibility) and not banned_as_commander
+
+
 IS_TAG_CHECKS: dict[str, Any] = {
     "arena_league": lambda c, *_: "arenaleague" in _promo_types(c),
     "booster": lambda c, *_: bool(c.get("booster")),
     "buyabox": lambda c, *_: "buyabox" in _promo_types(c),
+    "commander": lambda c, _mana_cost_text, oracle_text: _is_commander_eligible(c, oracle_text),
     "convention": lambda c, *_: "convention" in _promo_types(c),
     "datestamped": lambda c, *_: "datestamped" in _promo_types(c),
     "etched": lambda c, *_: "etched" in _finishes(c),
