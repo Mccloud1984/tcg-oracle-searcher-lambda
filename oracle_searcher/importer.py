@@ -529,7 +529,7 @@ def check(db_path: str | Path) -> list[str]:
     (faceless_multi_face,) = conn.execute(
         """
         SELECT COUNT(*) FROM cards
-        WHERE card_name LIKE '%//%'
+        WHERE card_name LIKE '% // %'
           AND id NOT IN (SELECT DISTINCT card_id FROM card_faces)
         """
     ).fetchone()

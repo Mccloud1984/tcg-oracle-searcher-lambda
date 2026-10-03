@@ -206,6 +206,42 @@ def test_check_detects_missing_face_rows(built_db_path: Path, tmp_path: Path) ->
     assert any("card_faces" in p for p in problems)
 
 
+def test_check_ignores_unspaced_slash_in_a_single_face_card_name(tmp_path: Path) -> None:
+    """check() doesn't mistake a single-face card's own "//" for a multi-face separator.
+
+    Real card, not invented: "SP//dr, Piloted by Peni" (oracle_cards.jsonl.gz, 2026-10-03) is a
+    single-face (layout "normal") card whose own name contains "//" with no surrounding spaces,
+    unlike every real multi-face name ("Front // Back", confirmed against all 3,214 multi-face
+    cards in that same file). An earlier `card_name LIKE '%//%'` check flagged it as a multi-face
+    card missing its card_faces rows, which it never had and never needed.
+    """
+    minimal_card = {
+        "oracle_id": "11111111-1111-1111-1111-111111111111",
+        "name": "SP//dr, Piloted by Peni",
+        "layout": "normal",
+        "type_line": "Legendary Creature — Human Spider",
+        "legalities": {"standard": "not_legal"},
+        "colors": ["U", "R"],
+        "color_identity": ["U", "R"],
+        "keywords": [],
+        "cmc": 3.0,
+        "rarity": "mythic",
+        "set": "mar",
+        "collector_number": "1",
+        "prices": {},
+        "released_at": "2025-01-01",
+    }
+    cards_path = tmp_path / "cards.jsonl"
+    cards_path.write_text(json.dumps(minimal_card) + "\n", encoding="utf-8")
+    empty_tags_path = tmp_path / "tags.jsonl"
+    empty_tags_path.write_text("", encoding="utf-8")
+    out_path = tmp_path / "out.sqlite"
+
+    build(cards_path, empty_tags_path, out_path)
+
+    assert not any("card_faces" in p for p in check(out_path))
+
+
 def test_check_reports_unreadable_database(tmp_path: Path) -> None:
     """check() returns a problem (not an exception) for a missing or corrupt database file."""
     problems = check(tmp_path / "does_not_exist.sqlite")
