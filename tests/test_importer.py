@@ -106,6 +106,21 @@ def test_legalities_stored_as_given(conn: sqlite3.Connection) -> None:
     assert legalities["commander"] == "legal"
 
 
+def test_oracle_text_search_strips_reminder_text(conn: sqlite3.Connection) -> None:
+    """oracle_text_search drops reminder text that oracle_text (full) keeps (Purple item 1).
+
+    Barren Moor's only mention of drawing is inside its cycling reminder -- Scryfall's `o:`
+    excludes reminder text (scryfall.com/docs/syntax), so the column `o:` compiles against must
+    not have it, while the full oracle_text column (kept for anything needing the real printed
+    text) still does.
+    """
+    row = card_row(conn, "Barren Moor")
+    assert "Draw a card" in row["oracle_text"]
+    assert "Draw a card" not in row["oracle_text_search"]
+    assert "Cycling" in row["oracle_text_search"]
+    assert "enters tapped" in row["oracle_text_search"]
+
+
 def test_preview_card_is_present(conn: sqlite3.Connection) -> None:
     """A card whose chosen printing is a future preview (released_at 2026-11-13) is still imported."""
     row = card_row(conn, "Island")
@@ -149,6 +164,12 @@ def test_oracle_tag_ancestors_are_included(conn: sqlite3.Connection) -> None:
         ("Koth of the Hammer Emblem", True),  # layout: emblem
         ("Brightglass Gearhulk // Brightglass Gearhulk", True),  # layout: art_series (set_type memorabilia)
         ("Surprise!", True),  # layout: front_card (set_type memorabilia)
+        # set_type funny (Un-sets, holiday cards): Scryfall's own docs (scryfall.com/docs/syntax,
+        # checked 2026-10-03), "Extra Cards and Funny Cards": "Un-cards, holiday cards, and other
+        # funny cards are findable with is:funny or mentioning their set" -- i.e. hidden otherwise,
+        # the same "search for their type/set to reveal it" pattern as vanguard/scheme/memorabilia
+        # above (docs/PLAN-2026-10-03.md, Purple item 4).
+        ("Richard Garfield, Ph.D.", True),  # set_type: funny (Unglued)
         ("Lightning Bolt", False),
         ("Jace, Vryn's Prodigy // Jace, Telepath Unbound", False),
     ],
@@ -156,6 +177,30 @@ def test_oracle_tag_ancestors_are_included(conn: sqlite3.Connection) -> None:
 def test_is_extra(conn: sqlite3.Connection, name: str, *, expected_is_extra: bool) -> None:
     """is_extra matches what Scryfall's own default search hides (see the evidence cited above)."""
     assert card_row(conn, name)["is_extra"] == (1 if expected_is_extra else 0)
+
+
+@pytest.mark.parametrize(
+    ("name", "expected_commander"),
+    [
+        # Front-face structural eligibility, including Scryfall's `*` toughness cases (Purple
+        # item 3; live-verified 2026-10-03 against api.scryfall.com's is:commander results).
+        ("Ashaya, Soul of the Wild", True),  # Legendary Creature, toughness "*"
+        ("Daxos, Blessed by the Sun", True),  # Legendary Enchantment Creature, toughness "*"
+        ("Lumra, Bellow of the Woods", True),  # Legendary Creature, toughness "*"
+        # Front face only: the legendary-creature half is the BACK face, so neither qualifies,
+        # even though the combined/union type_line (what the old rewrite-time expansion read)
+        # includes "Legendary Creature".
+        ("Westvale Abbey // Ormendahl, Profane Prince", False),  # front face: plain Land
+        ("Invasion of Ikoria // Zilortha, Apex of Ikoria", False),  # front face: Battle, no toughness
+        # Structurally eligible (Legendary Creature with printed toughness) but banned as commander.
+        ("Griselbrand", False),
+        ("Lightning Bolt", False),  # not legendary at all
+    ],
+)
+def test_commander_is_tag(conn: sqlite3.Connection, name: str, *, expected_commander: bool) -> None:
+    """card_is_tags includes "commander" exactly where Scryfall's is:commander does."""
+    tags = json.loads(card_row(conn, name)["card_is_tags"])
+    assert ("commander" in tags) == expected_commander
 
 
 def test_every_card_in_fixture_is_imported(conn: sqlite3.Connection) -> None:

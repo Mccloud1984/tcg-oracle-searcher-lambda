@@ -37,10 +37,8 @@ EQUIVALENCES = [
     ("is:colorshifted", "frame:colorshifted"),
     ("is:manland", "t:land o:become o:creature o:/still a.* land/"),
     ("is:creatureland", "t:land o:become o:creature o:/still a.* land/"),
-    (
-        "is:commander",
-        '((t:legendary (toughness>=0 or t:background)) or o:"can be your commander") -banned:commander',
-    ),
+    # is:commander is deliberately NOT here any more -- see test_commander_is_tag_passes_through
+    # below and the note in rewrite.py's _DERIVED_EXPANSIONS.
     ("is:fetchland", "otag:cycle-fetchland"),
     ("is:checkland", "otag:cycle-checkland"),
     ("is:painland", "otag:cycle-painland"),
@@ -103,6 +101,21 @@ def test_unimplemented_is_tag_passes_through(parse_query) -> None:
     assert root.operator == ":"
     assert root.lhs.original_attribute == "is"
     assert root.rhs.value == "promo"
+
+
+def test_commander_is_tag_passes_through(parse_query) -> None:
+    """is:commander is deliberately absent from _DERIVED_EXPANSIONS (removed, not just unlisted).
+
+    oracle_searcher precomputes "commander" membership at import time from the raw card's front
+    face (oracle_searcher/importer.py's `_is_commander_eligible`) instead of expanding it into a
+    subtree here, because the expansion's `t:legendary`/`toughness>=0` leaves work over this
+    schema's face-UNIONED columns and so can't express "front face only" (see rewrite.py's note).
+    So is:commander must pass through as a plain `is:` leaf, exactly like is:promo above.
+    """
+    root = parse_query("is:commander").root
+    assert root.operator == ":"
+    assert root.lhs.original_attribute == "is"
+    assert root.rhs.value == "commander"
 
 
 def test_real_frame_value_not_rewritten(parse_query) -> None:

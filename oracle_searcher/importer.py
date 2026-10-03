@@ -69,6 +69,14 @@ _KEEP_URI_FIELDS = frozenset({"image_uris", "purchase_uris", "scryfall_uri"})
 _HYBRID_MANA_RE = re.compile(r"\{[2CWUBRG]/[WUBRG]")
 _PHYREXIAN_MANA_RE = re.compile(r"/P\}")
 
+# A single non-nested parenthesised span. Reminder text is never otherwise parenthesised in
+# Oracle text, so repeatedly stripping innermost spans (see `_strip_reminder_text`) removes
+# reminder text exactly, including the handful of real cards with reminder text nested two or
+# three deep (e.g. "Super haste (This may attack the turn before you cast it. (You may put...))").
+_PAREN_SPAN_RE = re.compile(r"\([^()]*\)")
+_RUN_OF_SPACES_RE = re.compile(r"[ \t]+")
+_SPACE_AROUND_NEWLINE_RE = re.compile(r" *\n *")
+
 
 # Ported from Sylvan's api.admin_resource.BOOLEAN_IS_TAGS (a SQL expression per tag, evaluated
 # against raw_card_blob in Postgres) to direct predicates over the raw Scryfall dict, evaluated
@@ -86,10 +94,60 @@ def _finishes(card: dict[str, Any]) -> set[str]:
     return set(card.get("finishes") or [])
 
 
+def _commander_front_face(card: dict[str, Any]) -> dict[str, Any]:
+    """The face whose type line and printed toughness decide commander eligibility.
+
+    Comprehensive Rule 712.8/901.5-ish framing: a double-faced permanent's characteristics (for
+    anything checked before it's on the battlefield, like "can this be my commander") come from
+    its front face. Scryfall's is:commander agrees: Westvale Abbey // Ormendahl, Profane Prince
+    (front face Westvale Abbey, a plain Land) and Invasion of Ikoria // Zilortha, Apex of Ikoria
+    (front face a Battle) are both excluded despite a legendary-creature back face (confirmed live
+    2026-10-03: neither is in Scryfall's is:commander results, both are in ours before this fix).
+    """
+    faces = card.get("card_faces") or []
+    return faces[0] if faces else card
+
+
+def _is_commander_eligible(card: dict[str, Any], oracle_text: str | None) -> bool:
+    """True for a card Scryfall's `is:commander` returns: can legally be named a commander.
+
+    Front-face-only structural rule, replacing Sylvan's `is:commander` rewrite-time expansion
+    (`api.parsing.rewrite._DERIVED_EXPANSIONS`, removed in the same change that added this): that
+    expansion worked over the schema's face-UNIONED columns ("a card matches when ANY face
+    matches" -- schema.py), which is right for text/type searches but wrong for a structural
+    eligibility rule that Scryfall evaluates on the front face alone, and it used `toughness>=0`
+    as a proxy for "this permanent prints a toughness" that silently broke on this schema's `*`
+    toughness (stored as NULL, not 0 -- Sylvan's own comment assumed "* compares as 0 on both
+    engines", true of its Postgres column, not of this REAL column). Verified live 2026-10-03:
+    Ashaya, Soul of the Wild / Daxos, Blessed by the Sun / Lumra, Bellow of the Woods (all `*`
+    toughness) are all in Scryfall's is:commander; `toughness>=0` excluded them here.
+
+    Eligible: the front face is a Legendary permanent with a printed toughness field (creatures,
+    Vehicles, Spacecraft -- present even when its value is "*", absent for anything without
+    power/toughness at all) or is a Background; OR the card's oracle text grants eligibility
+    outright ("can be your commander") -- checked on the combined text, since this is a textual
+    grant rather than a structural one and nothing in the 2026-10-03 corpus needs narrowing it to
+    one face. MINUS cards banned as commander (Griselbrand, Golos, Emrakul, Erayo were the
+    over-catch Sylvan's comment recorded from the same structural rule, live-diffed against
+    Scryfall's is:commander: all three legendary creatures above are `legalities.commander ==
+    "banned"`).
+    """
+    front = _commander_front_face(card)
+    type_line = front.get("type_line") or ""
+    is_legendary = "Legendary" in type_line
+    is_background = "Background" in type_line
+    has_printed_toughness = "toughness" in front
+    grants_eligibility = "can be your commander" in (oracle_text or "").lower()
+    structurally_eligible = is_legendary and (has_printed_toughness or is_background)
+    banned_as_commander = (card.get("legalities") or {}).get("commander") == "banned"
+    return (structurally_eligible or grants_eligibility) and not banned_as_commander
+
+
 IS_TAG_CHECKS: dict[str, Any] = {
     "arena_league": lambda c, *_: "arenaleague" in _promo_types(c),
     "booster": lambda c, *_: bool(c.get("booster")),
     "buyabox": lambda c, *_: "buyabox" in _promo_types(c),
+    "commander": lambda c, _mana_cost_text, oracle_text: _is_commander_eligible(c, oracle_text),
     "convention": lambda c, *_: "convention" in _promo_types(c),
     "datestamped": lambda c, *_: "datestamped" in _promo_types(c),
     "etched": lambda c, *_: "etched" in _finishes(c),
@@ -173,6 +231,29 @@ def _combined_oracle_text(card: dict[str, Any]) -> str | None:
     return "\n//\n".join(face.get("oracle_text") or "" for face in faces)
 
 
+def _strip_reminder_text(text: str | None) -> str | None:
+    """Oracle text with every parenthesised reminder span removed, matching Scryfall's `o:`.
+
+    Scryfall's docs (scryfall.com/docs/syntax, checked 2026-10-03): "This keyword [o:] usually
+    checks the current Oracle text for cards... Use the fo: or fulloracle: operator to search the
+    full Oracle text, which includes reminder text." So `o:` excludes it. Real example: Barren
+    Moor's only mention of "draw a card" is inside its cycling reminder ("Cycling {B} ({B},
+    Discard this card: Draw a card.)") -- Scryfall's `o:draw` does not return it (cached
+    tests/fixtures/scryfall/ responses only list it as `only_ours` in scripts/parity.py's output
+    before this fix), confirming the docs' claim against real search results, not just the text.
+    """
+    if text is None:
+        return None
+    stripped = text
+    previous = None
+    while stripped != previous:
+        previous = stripped
+        stripped = _PAREN_SPAN_RE.sub("", stripped)
+    stripped = _RUN_OF_SPACES_RE.sub(" ", stripped)
+    stripped = _SPACE_AROUND_NEWLINE_RE.sub("\n", stripped)
+    return stripped.strip()
+
+
 def _combined_mana_cost_text(card: dict[str, Any]) -> str | None:
     if card.get("mana_cost") is not None:
         return card["mana_cost"]
@@ -218,8 +299,17 @@ def _mask(colors: Iterable[str] | None) -> int:
 
 
 def _is_extra(card: dict[str, Any]) -> bool:
-    """True for what Scryfall's own search hides by default (see `_HIDDEN_LAYOUTS` above)."""
-    return card.get("layout") in _HIDDEN_LAYOUTS or card.get("set_type") == "memorabilia"
+    """True for what Scryfall's own search hides by default (see `_HIDDEN_LAYOUTS` above).
+
+    `set_type == "funny"` (docs/PLAN-2026-10-03.md, Purple item 4): Scryfall's docs
+    (scryfall.com/docs/syntax, "Extra Cards and Funny Cards", checked 2026-10-03) -- "Un-cards,
+    holiday cards, and other funny cards are findable with is:funny or mentioning their set" --
+    the same "name its type/set to reveal it" pattern already applied to vanguard/scheme/
+    memorabilia above. This is a documented, not a guessed, rule; it does not fully close the
+    broader default-visible-count gap against Scryfall (see the Purple section of
+    docs/PLAN-2026-10-03.md for the counting-query evidence and the residual left open).
+    """
+    return card.get("layout") in _HIDDEN_LAYOUTS or card.get("set_type") in ("memorabilia", "funny")
 
 
 def _is_tags(card: dict[str, Any], mana_cost_text: str | None, oracle_text: str | None) -> list[str]:
@@ -264,6 +354,7 @@ def _build_card_row(
         "card_types": json.dumps(card_types),
         "card_subtypes": json.dumps(card_subtypes),
         "oracle_text": oracle_text,
+        "oracle_text_search": _strip_reminder_text(oracle_text),
         "flavor_text": card.get("flavor_text") or "",
         "mana_cost_text": mana_cost_text,
         "mana_cost_jsonb": json.dumps(mana_cost_str_to_dict(front_mana_cost)),
@@ -396,6 +487,7 @@ _CARD_COLUMNS = [
     "card_types",
     "card_subtypes",
     "oracle_text",
+    "oracle_text_search",
     "flavor_text",
     "mana_cost_text",
     "mana_cost_jsonb",

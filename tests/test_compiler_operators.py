@@ -22,6 +22,8 @@ MANA_CRYPT = "Mana Crypt"  # banned:commander
 JACE_VRYN = "Jace, Vryn's Prodigy // Jace, Telepath Unbound"  # transform, face2 loyalty 5
 TARMOGOYF_TOKEN = "Tarmogoyf"  # layout token
 GRIST = "Grist, the Hunger Tide"  # Legendary Planeswalker, keywords=['Mill']
+BARREN_MOOR = "Barren Moor"  # cycling land; "Draw a card" appears only in its cycling reminder
+ACCURSED_MARAUDER = "Accursed Marauder"  # "each player ... creature" -- never adjacent "each creature"
 
 
 def _match(conn: sqlite3.Connection, query_text: str) -> set[int]:
@@ -108,8 +110,15 @@ def test_type_query_routes_unknown_value_to_card_subtypes() -> None:
     assert _match(conn, "t:elf") == {ids[LLANOWAR_ELVES]}
 
 
-def test_type_query_routes_extra_layout_word_to_subtypes_too() -> None:
-    """`t:token` must find a word Sylvan's CARD_TYPES set doesn't recognise as a type."""
+def test_type_query_routes_extra_layout_word_to_types_not_subtypes() -> None:
+    """`t:token` must find a word Sylvan's CARD_TYPES set doesn't recognise as a type.
+
+    The importer's `parse_type_line` puts every word before the em dash in `card_types`
+    regardless of whether Sylvan recognises it as a real type -- a token's type line is "Token
+    Creature" with no dash at all, so "Token" lands in `card_types`, never `card_subtypes`
+    (docs/PLAN-2026-10-03.md, Purple item 2). Routing `t:token` to `card_subtypes` instead finds
+    nothing against a real build, where Scryfall finds 821.
+    """
     conn, ids = _db_with(TARMOGOYF_TOKEN, LLANOWAR_ELVES)
     assert _match(conn, "t:token") == {ids[TARMOGOYF_TOKEN]}
 
@@ -147,6 +156,21 @@ def test_oracle_text_finds_text_only_on_back_face() -> None:
     assert _match(conn, 'o:"exile Jace"') == {ids[JACE_VRYN]}
 
 
+def test_quoted_phrase_requires_adjacent_words() -> None:
+    """A quoted o: phrase must match as one contiguous substring, not "words in order, anything between".
+
+    Accursed Marauder's text is "When this creature enters, each player sacrifices a nontoken
+    creature of their choice." -- it contains "each" and, much later, "creature" again, but never
+    the adjacent phrase "each creature". Found via scripts/parity.py's suffix-corpus run: a
+    `(o:"each creature" or ...)`-style query ran ~3x Scryfall's total even after the reminder-text
+    fix (item 1), because splitting a quoted value into words and wildcarding *between* them
+    (the pre-fix pattern) let any text separate them.
+    """
+    conn, ids = _db_with(ACCURSED_MARAUDER, LLANOWAR_ELVES)
+    assert _match(conn, 'o:"each creature"') == set()
+    assert _match(conn, 'o:"each player"') == {ids[ACCURSED_MARAUDER]}
+
+
 # ── keywords ──────────────────────────────────────────────────────────────────────────────────
 
 
@@ -172,6 +196,28 @@ def test_bare_year_date_query_uses_a_range_not_literal_equality() -> None:
     card_id = insert_named_card(conn, LLANOWAR_ELVES, released_at="2024-06-01")
     assert _match(conn, "date:2024") == {card_id}
     assert _match(conn, "date:2023") == set()
+
+
+# ── reminder text excluded from o:/oracle: (Purple item 1) ──────────────────────────────────
+
+
+def test_oracle_text_search_ignores_reminder_text() -> None:
+    r"""`o:` must not match a word that appears only inside a reminder-text parenthetical.
+
+    Barren Moor's oracle text is "This land enters tapped.\n{T}: Add {B}.\nCycling {B} ({B},
+    Discard this card: Draw a card.)" -- "draw a card" appears only inside the cycling reminder.
+    Scryfall's docs (scryfall.com/docs/syntax): o:/oracle: search "the current Oracle text", and
+    "fo:/fulloracle:" is the separate operator that "includes reminder text" -- so o:draw must not
+    find it. Before this fix, our oracle_text column kept reminder text, so `o:draw` and
+    `o:"draw a card"` wrongly matched (scripts/parity.py's `only_ours` list for `o:draw` against a
+    real build named this exact card).
+    """
+    conn, ids = _db_with(BARREN_MOOR, LLANOWAR_ELVES)
+    assert _match(conn, "o:draw") == set()
+    assert _match(conn, 'o:"draw a card"') == set()
+    # Real, non-reminder text on the card must still match.
+    assert _match(conn, "o:cycling") == {ids[BARREN_MOOR]}
+    assert _match(conn, "o:tapped") == {ids[BARREN_MOOR]}
 
 
 # ── regex (registered REGEXP function) ──────────────────────────────────────────────────────

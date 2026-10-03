@@ -337,13 +337,24 @@ def _compile_legality(lhs: CardAttributeNode, operator: str, rhs: QueryNode, par
 
 # ── card_types / card_subtypes (ambiguous `t:`/`type:` alias resolves per value) ────────────
 
+# Type-line words the importer's `parse_type_line` (api.card_processing, reused verbatim) puts in
+# card_types because they sit before the type line's em dash, even though Sylvan's CARD_TYPES /
+# CARD_SUPERTYPES don't recognise them as a real card type -- e.g. a token's type line is "Token
+# Creature — Elf" and an emblem's is just "Emblem" (schema.py: card_types/card_subtypes are
+# parsed the same way as the importer parses them). Confirmed against the real 2026-10-03 build
+# (docs/PLAN-2026-10-03.md, Purple item 2): `card_types` held `["Token", "Creature"]` for every
+# token row and `["Emblem"]` for every emblem row, never in card_subtypes. Routing `t:token` to
+# card_subtypes instead (the pre-fix behaviour) found zero rows against a real build, where
+# Scryfall finds 821. Also the five is_extra reveal words `search.py` already special-cases.
+EXTRA_TYPE_VALUES = frozenset({"Token", "Emblem", "Vanguard", "Plane", "Phenomenon", "Scheme"})
+
 
 def _compile_type_subtype(operator: str, rhs: QueryNode, params: list[Any]) -> str:
     if not isinstance(rhs, StringValueNode):
         msg = f"a non-string type value ({rhs!r}) is not supported"
         raise Unsupported(msg)
     value = rhs.value.strip().title()
-    column = "card_types" if value in CARD_SUPERTYPES | CARD_TYPES else "card_subtypes"
+    column = "card_types" if value in CARD_SUPERTYPES | CARD_TYPES | EXTRA_TYPE_VALUES else "card_subtypes"
     return _array_membership_sql(column, operator, value, params)
 
 
@@ -396,6 +407,18 @@ def _array_membership_sql(column: str, operator: str, value: str, params: list[A
 # ── free text (name, oracle text, flavor text, artist, set/layout/border/watermark, …) ──────
 
 
+def _text_search_column(attr: str) -> str:
+    """The column a search on `attr` actually reads.
+
+    oracle_text redirects to its reminder-free twin (schema.py's `oracle_text_search`, built by
+    importer._strip_reminder_text) because Scryfall's `o:`/`oracle:` excludes reminder text
+    (scryfall.com/docs/syntax: "Use the fo: or fulloracle: operator to search the full Oracle
+    text, which includes reminder text"), for every operator -- `:`/LIKE, regex, and the rare
+    `o=`/`o!=`/etc. equality forms alike.
+    """
+    return "oracle_text_search" if attr == "oracle_text" else attr
+
+
 def _compile_text(attr: str, operator: str, rhs: QueryNode, params: list[Any]) -> str:
     if isinstance(rhs, RegexValueNode):
         return _compile_regex(attr, rhs, params)
@@ -424,17 +447,27 @@ def _compile_text(attr: str, operator: str, rhs: QueryNode, params: list[Any]) -
     elif attr == "card_set_code":
         compare_value = value.lower()
     params.append(compare_value)
-    return f"(card.{attr} {operator} ?)"
+    return f"(card.{_text_search_column(attr)} {operator} ?)"
 
 
 def _text_pattern_sql(attr: str, value: str, params: list[Any]) -> str:
-    column = attr
+    """A `:` text search: `value` must appear as one contiguous (whitespace-normalised) substring.
+
+    Scryfall's `o:"each creature"` means the literal adjacent phrase, not "each" and "creature"
+    appearing anywhere in that order -- a quoted value only ever reaches here with internal
+    whitespace when the user wrote a multi-word phrase (the parser splits an unquoted bare query
+    into separate single-word leaves), so every space in `value` is part of the phrase, not a
+    place text may vary. Found via scripts/parity.py (Purple item 6's harness): wildcarding
+    *between* words let `o:"each creature"` match Accursed Marauder's "each player sacrifices a
+    nontoken creature", which has both words but never adjacent.
+    """
+    column = _text_search_column(attr)
     search_value = value
     if attr == "card_name":
         column = "card_name_folded"
         search_value = fold_accents(value)
-    words = search_value.lower().split()
-    pattern = "%" + "%".join(_escape_like(word) for word in words) + "%" if words else "%"
+    normalized = " ".join(search_value.lower().split())
+    pattern = "%" + _escape_like(normalized) + "%" if normalized else "%"
     params.append(pattern)
     return rf"(lower(card.{column}) LIKE ? ESCAPE '\')"
 
@@ -444,9 +477,9 @@ def _escape_like(value: str) -> str:
 
 
 def _compile_regex(attr: str, rhs: RegexValueNode, params: list[Any]) -> str:
-    column = attr
     if attr not in _PATTERN_TEXT_COLUMNS and attr != "card_name":
         msg = f"regex matching on {attr!r} is not supported"
         raise Unsupported(msg)
+    column = _text_search_column(attr)
     params.append(rhs.value)
     return f"(card.{column} REGEXP ?)"
