@@ -203,11 +203,17 @@ def _card_colors(card: dict[str, Any]) -> list[str]:
 
 
 def _mask(colors: Iterable[str] | None) -> int:
+    """Colour letters to a bitmask (schema.COLOR_BITS), silently dropping anything outside WUBRGC.
+
+    Scryfall's produced_mana is occasionally a joke value from an Un-set card (e.g. "Sole
+    Performer" produces ["T"], the only non-WUBRGC value in the whole 2026-10-03 file) that this
+    bitmask schema has no bit for and no `produces:` syntax could ever ask about anyway.
+    """
     if colors is None:
         return 0
     mask = 0
     for color in colors:
-        mask |= COLOR_BITS[color]
+        mask |= COLOR_BITS.get(color, 0)
     return mask
 
 

@@ -13,7 +13,7 @@ from pathlib import Path
 
 import pytest
 
-from oracle_searcher.importer import build, check
+from oracle_searcher.importer import _mask, build, check
 from oracle_searcher.schema import COLOR_BITS
 from tests.conftest import CARDS_FIXTURE, TAGS_FIXTURE, card_row, face_rows, load_fixture_cards
 
@@ -84,6 +84,17 @@ def test_produced_mana_mask_includes_colorless_bit(conn: sqlite3.Connection) -> 
     row = card_row(conn, "Mana Crypt")
     assert row["produced_mana"] == COLOR_BITS["C"] == 32
     assert row["card_colors"] == 0  # Mana Crypt itself is colourless
+
+
+def test_mask_ignores_a_symbol_outside_wubrgc() -> None:
+    """_mask() skips a produced_mana symbol with no bit, instead of crashing the whole build.
+
+    Found in the real 2026-10-03 oracle_cards.jsonl.gz (not in the small fixture file): the Un-set
+    card "Sole Performer" has produced_mana == ["T"], Scryfall's only non-WUBRGC value in the
+    whole file -- a full build raised KeyError('T') on it before this test.
+    """
+    assert _mask(["T"]) == 0
+    assert _mask(["C", "T"]) == COLOR_BITS["C"]
 
 
 def test_legalities_stored_as_given(conn: sqlite3.Connection) -> None:
