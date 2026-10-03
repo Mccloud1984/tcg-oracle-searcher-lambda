@@ -1,0 +1,2 @@
+identity<=UB (legal:commander or date>2026-10-03)
+identity<=BRUW legal:commander
