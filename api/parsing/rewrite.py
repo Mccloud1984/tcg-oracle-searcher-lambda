@@ -84,8 +84,7 @@ _DERIVED_EXPANSIONS: dict[tuple[str, str], str] = {
     # bulk export; ancestor propagation makes parent slugs self-updating as
     # new cycles are tagged. Plain parent tags preferred where they exist
     # (bounceland/gainland/shockland per review). Deviations from Scryfall's
-    # own is: membership are accepted as community sentiment -- otag:shockland (minus Multiversal Passage, which Scryfall leaves out)
-    # includes Multiversal Passage, otag:gainland reaches newer
+    # own is: membership are accepted as community sentiment -- otag:gainland reaches newer
     # enters-tapped-gain-life cycles Scryfall's list lacks -- with counts
     # last validated against api.scryfall.com on 2026-08-07.
     ("is", "battleland"): "otag:cycle-tangoland",  # 10
