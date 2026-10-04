@@ -103,6 +103,18 @@ def test_order_edhrec_desc_still_puts_unranked_last() -> None:
     assert _names(result) == [LLANOWAR_ELVES, SOL_RING, BLACK_LOTUS]
 
 
+def test_order_edhrec_ties_break_by_name() -> None:
+    """Unranked cards (every token) tie on edhrec; Scryfall lists them by name.
+
+    Live 2026-10-03: `t:token` order=edhrec starts Adorned Pouncer, Aetherborn, Agate Instigator.
+    We used insertion order, so the top-20 overlap with Scryfall was 0.05.
+    """
+    conn = make_db()
+    insert_named_card(conn, "Tyranid")  # inserted first, sorts last
+    insert_named_card(conn, TARMOGOYF_TOKEN)
+    assert _names(search(conn, "t:token", order="edhrec")) == [TARMOGOYF_TOKEN, "Tyranid"]
+
+
 def test_order_released_defaults_to_newest_first() -> None:
     conn = make_db()
     _insert_three(conn)
