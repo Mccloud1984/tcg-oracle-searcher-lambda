@@ -50,21 +50,42 @@ _HIDDEN_LAYOUTS = frozenset({"token", "double_faced_token", "emblem", "vanguard"
 # api.card_processing.PERMANENT_CARD_TYPES; devotion is undefined for an Instant/Sorcery).
 _PERMANENT_CARD_TYPES = frozenset({"Artifact", "Battle", "Creature", "Enchantment", "Land", "Planeswalker"})
 
-# Top-level id fields dropped from card_json: internal to other sites' catalogs, no caller needs them.
-_DROP_ID_FIELDS = frozenset(
+# card_json keeps only what Purroxy reads from a Scryfall card (backend/app/services/utils.py: format_card_response,
+# _scryfall_to_card, card_image_uri, price_fields, purchase_fields; tokens.py; proxy art and frame code). Everything
+# else (artist, frame, set URIs, flags, ...) is dropped: it was most of the 255 MB file.
+_KEEP_CARD_FIELDS = frozenset(
     {
-        "multiverse_ids",
-        "mtgo_id",
-        "mtgo_foil_id",
-        "arena_id",
-        "tcgplayer_id",
-        "tcgplayer_etched_id",
-        "cardmarket_id",
+        "id",
+        "oracle_id",
+        "name",
+        "mana_cost",
+        "cmc",
+        "type_line",
+        "oracle_text",
+        "flavor_text",
+        "power",
+        "toughness",
+        "loyalty",
+        "colors",
+        "color_identity",
+        "keywords",
+        "layout",
+        "set",
+        "set_name",
+        "set_type",
+        "collector_number",
+        "rarity",
+        "released_at",
+        "prices",
+        "purchase_uris",
+        "legalities",
+        "game_changer",
+        "edhrec_rank",
     }
 )
-# *_uri fields kept despite the general "drop *_uri fields" rule, plus the bare "uri" self-link
-# (not suffixed "_uri" but the same kind of field) which is always dropped.
-_KEEP_URI_FIELDS = frozenset({"image_uris", "purchase_uris", "scryfall_uri"})
+_KEEP_FACE_FIELDS = frozenset({"name", "mana_cost", "type_line", "oracle_text", "power", "toughness", "loyalty"})
+_KEEP_IMAGE_SIZES = frozenset({"grid", "large", "art_crop"})  # the sizes Purroxy asks for
+_KEEP_PART_FIELDS = frozenset({"id", "component", "name", "type_line"})
 
 _HYBRID_MANA_RE = re.compile(r"\{[2CWUBRG]/[WUBRG]")
 _PHYREXIAN_MANA_RE = re.compile(r"/P\}")
@@ -368,15 +389,28 @@ def _is_tags(card: dict[str, Any], mana_cost_text: str | None, oracle_text: str 
     return sorted(tag for tag, check in IS_TAG_CHECKS.items() if check(card, mana_cost_text, oracle_text))
 
 
+def _trim_images(image_uris: dict[str, str] | None) -> dict[str, str] | None:
+    return {size: uri for size, uri in image_uris.items() if size in _KEEP_IMAGE_SIZES} if image_uris else None
+
+
+def _trim_face(face: dict[str, Any]) -> dict[str, Any]:
+    trimmed = {key: value for key, value in face.items() if key in _KEEP_FACE_FIELDS}
+    if images := _trim_images(face.get("image_uris")):
+        trimmed["image_uris"] = images
+    return trimmed
+
+
 def _trim_card_json(card: dict[str, Any]) -> dict[str, Any]:
-    """Scryfall's card object, stripped of ids and *_uri fields no caller needs (see schema.py)."""
-    trimmed = {}
-    for key, value in card.items():
-        if key in _DROP_ID_FIELDS or key == "uri":
-            continue
-        if key.endswith("_uri") and key not in _KEEP_URI_FIELDS:
-            continue
-        trimmed[key] = value
+    """Scryfall's card object cut down to the fields Purroxy reads (see _KEEP_CARD_FIELDS)."""
+    trimmed = {key: value for key, value in card.items() if key in _KEEP_CARD_FIELDS}
+    if images := _trim_images(card.get("image_uris")):
+        trimmed["image_uris"] = images
+    if card.get("card_faces"):
+        trimmed["card_faces"] = [_trim_face(face) for face in card["card_faces"]]
+    if card.get("all_parts"):
+        trimmed["all_parts"] = [{k: v for k, v in part.items() if k in _KEEP_PART_FIELDS} for part in card["all_parts"]]
+    if previewed_at := (card.get("preview") or {}).get("previewed_at"):
+        trimmed["preview"] = {"previewed_at": previewed_at}
     return trimmed
 
 
