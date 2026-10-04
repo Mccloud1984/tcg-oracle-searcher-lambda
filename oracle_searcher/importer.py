@@ -302,17 +302,25 @@ def _legal_somewhere(card: dict[str, Any]) -> bool:
     return any(status in ("legal", "restricted") for status in (card.get("legalities") or {}).values())
 
 
+# set_type "funny" sets Scryfall's default search still shows although every card is legal
+# nowhere: the Un-sets (Unglued, Unhinged, Unstable, Unsanctioned, Unfinity) and the Ponies
+# promo set. Live probe 2026-10-03, one card per funny set:
+# tests/fixtures/scryfall/funny_set_default_visibility.json. Every other funny set (playtest
+# cards, Happy Holidays, Heroes of the Realm, HasCon, ...) is hidden.
+_VISIBLE_FUNNY_SETS = frozenset({"ugl", "unh", "ust", "und", "unf", "ptg"})
+
+
 def _is_extra(card: dict[str, Any]) -> bool:
     """True for what Scryfall's own default search hides (see `_HIDDEN_LAYOUTS` above).
 
-    `set_type == "funny"` (Un-sets, holiday cards) is hidden only when the card is legal in no
-    format. Live parity 2026-10-03: hiding all funny cards made `legal:commander` 31942 vs
-    Scryfall's 32116; the missing 174 were exactly the funny cards legal in commander (152 plain
-    + 22 oval-stamp black-border Unfinity cards, e.g. Atomwheel Acrobats, Celebr-8000). Every
-    other funny card in the 2026-10-03 file is legal nowhere.
+    A `set_type == "funny"` card is hidden when it is legal in no format and not from one of the
+    `_VISIBLE_FUNNY_SETS`. Parity 2026-10-03: hiding every funny card made `legal:commander`
+    31942 vs Scryfall's 32116 (the missing 174 were exactly the funny cards legal in commander,
+    e.g. Atomwheel Acrobats, Celebr-8000), and hiding the Un-set ones too made `t:creature
+    cmc<=2` 5000 vs 5071.
     """
     if card.get("set_type") == "funny":
-        return not _legal_somewhere(card)
+        return not _legal_somewhere(card) and card.get("set") not in _VISIBLE_FUNNY_SETS
     return card.get("layout") in _HIDDEN_LAYOUTS or card.get("set_type") == "memorabilia"
 
 

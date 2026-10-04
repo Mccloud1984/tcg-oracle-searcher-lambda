@@ -1,0 +1,5 @@
+{
+  "_note": "Live 2026-10-03: GET /cards/search?q=!\"<name>\" (default filters, no include:extras), one card per set_type=funny (set, promo_types) group, all legal in no format. visible = the card came back. Un-sets show by default; playtest/holiday/promo funny sets do not.",
+  "visible": {"ptg": "Rarity", "ugl": "Cardboard Carapace", "und": "Wall of Fortune", "unf": "Plot Armor", "unh": "Stop That", "ust": "Spike, Tournament Grinder"},
+  "hidden": {"cmb2": "Patient Turtle", "hho": "Bog Humbugs", "ph19": "Collectigull // Only the Best", "punk": "The Windy City", "unk": "Phyrexian Broodstar", "h17": "Grimlock, Dinobot Leader // Grimlock, Ferocious King", "ph17": "Diabolical Salvation", "ph18": "Sol, Advocate Eternal", "ph20": "The Secret Lair", "ph21": "Arteeoh, Dread Scavenger", "ph22": "Wizard from Beyond", "ph23": "Mr. Monopoly, On the Go", "phtr": "Chandra, Gremlin Wrangler"}
+}

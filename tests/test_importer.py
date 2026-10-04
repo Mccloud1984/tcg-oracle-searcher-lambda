@@ -169,7 +169,7 @@ def test_oracle_tag_ancestors_are_included(conn: sqlite3.Connection) -> None:
         # funny cards are findable with is:funny or mentioning their set" -- i.e. hidden otherwise,
         # the same "search for their type/set to reveal it" pattern as vanguard/scheme/memorabilia
         # above (docs/PLAN-2026-10-03.md, Purple item 4).
-        ("Richard Garfield, Ph.D.", True),  # set_type: funny (Unglued), legal in no format
+        ("Richard Garfield, Ph.D.", False),  # set_type: funny (Unsanctioned), legal nowhere but Scryfall shows it (live 2026-10-03)
         # Regression: black-border Unfinity cards legal in commander ARE in Scryfall's default
         # `legal:commander` (ours hid 174 of them as "funny": 32116 vs 31942). Funny is hidden
         # only when legal in no format.
@@ -177,6 +177,20 @@ def test_oracle_tag_ancestors_are_included(conn: sqlite3.Connection) -> None:
         ("Celebr-8000", False),  # set_type: funny (Unfinity), legal in commander
         ("Lightning Bolt", False),
         ("Jace, Vryn's Prodigy // Jace, Telepath Unbound", False),
+        # Funny sets legal nowhere: only the Un-sets show by default (live probe saved in
+        # tests/fixtures/scryfall/funny_set_default_visibility.json). Regression: we hid them all,
+        # so `t:creature cmc<=2` was 5000 vs Scryfall's 5071 (and `t:zombie t:creature` 613 vs 625).
+        ("Wall of Fortune", False),  # und
+        ("Rarity", False),  # ptg
+        ("Cardboard Carapace", False),  # ugl
+        ("Stop That", False),  # unh
+        ("Plot Armor", False),  # unf
+        ("Spike, Tournament Grinder", False),  # ust
+        ("Patient Turtle", True),  # cmb2 (Mystery Booster playtest)
+        ("Phyrexian Broodstar", True),  # unk (Unknown Event playtest)
+        ("Bog Humbugs", True),  # hho (Happy Holidays)
+        ("Collectigull // Only the Best", True),  # ph19 (Heroes of the Realm)
+        ("The Windy City", True),  # punk (Black Lotus Unknown Planechase)
     ],
 )
 def test_is_extra(conn: sqlite3.Connection, name: str, *, expected_is_extra: bool) -> None:
