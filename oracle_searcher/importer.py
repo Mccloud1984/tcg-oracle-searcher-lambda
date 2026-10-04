@@ -82,6 +82,7 @@ _KEEP_CARD_FIELDS = frozenset(
         "legalities",
         "game_changer",
         "edhrec_rank",
+        "games",
     }
 )
 _KEEP_FACE_FIELDS = frozenset({"name", "mana_cost", "type_line", "oracle_text", "power", "toughness", "loyalty"})
@@ -296,12 +297,25 @@ class PrintingSummary:
 
 def summarize_printings(printings_path: str | Path) -> dict[str, PrintingSummary]:
     """Stream a default_cards file once into one small `PrintingSummary` per oracle_id (no printing is kept)."""
+    summaries, _ = _summarize_and_collect_printings(printings_path)
+    return summaries
+
+
+def _summarize_and_collect_printings(printings_path: str | Path) -> tuple[dict[str, PrintingSummary], list[dict[str, Any]]]:
+    """Stream a default_cards file once to build summaries and collect printing rows to insert.
+
+    Returns (summaries_dict, printing_rows) to avoid reading the file twice.
+    """
     summaries: dict[str, PrintingSummary] = {}
+    printing_rows: list[dict[str, Any]] = []
     for printing in _open_jsonl(printings_path):
-        oracle_id = printing.get("oracle_id")
+        oracle_id = _get_oracle_id_from_printing(printing)
         if oracle_id:
             summaries.setdefault(oracle_id, PrintingSummary()).add(printing)
-    return summaries
+            row = _build_printing_row(printing)
+            if row:
+                printing_rows.append(row)
+    return summaries, printing_rows
 
 
 def _open_jsonl(path: str | Path) -> Iterator[dict[str, Any]]:
@@ -550,6 +564,41 @@ def _build_card_row(
     }
 
 
+def _get_oracle_id_from_printing(printing: dict[str, Any]) -> str | None:
+    """Get oracle_id from a printing, checking top-level first, then card_faces.
+
+    Reversible cards (like Jinnie Fay) have oracle_id only on card_faces, not at the top level.
+    """
+    if oracle_id := printing.get("oracle_id"):
+        return oracle_id
+    # Check first face for reversible cards
+    faces = printing.get("card_faces") or []
+    if faces:
+        return faces[0].get("oracle_id")
+    return None
+
+
+def _build_printing_row(printing: dict[str, Any]) -> dict[str, Any] | None:
+    """Build one printings table row from a Scryfall printing object.
+
+    Returns None if the printing has no oracle_id (should not happen in real data).
+    """
+    oracle_id = _get_oracle_id_from_printing(printing)
+    if not oracle_id:
+        return None
+
+    return {
+        "id": printing.get("id"),
+        "oracle_id": oracle_id,
+        "set_code": (printing.get("set") or "").lower() if printing.get("set") else None,
+        "collector_number": printing.get("collector_number"),
+        "released_at": printing.get("released_at"),
+        "set_type": printing.get("set_type"),
+        "games": json.dumps(printing.get("games") or []),
+        "card_json": json.dumps(_trim_card_json(printing)),
+    }
+
+
 def _build_face_rows(card_id: int, card: dict[str, Any]) -> list[dict[str, Any]]:
     rows = []
     for index, face in enumerate(_card_faces(card), start=1):
@@ -697,6 +746,19 @@ _FACE_COLUMNS = [
     "face_colors",
 ]
 _FACE_INSERT_SQL = f"INSERT INTO card_faces ({', '.join(_FACE_COLUMNS)}) VALUES ({', '.join('?' for _ in _FACE_COLUMNS)})"
+_PRINTING_COLUMNS = [
+    "id",
+    "oracle_id",
+    "set_code",
+    "collector_number",
+    "released_at",
+    "set_type",
+    "games",
+    "card_json",
+]
+_PRINTING_INSERT_SQL = (
+    f"INSERT INTO printings ({', '.join(_PRINTING_COLUMNS)}) VALUES ({', '.join('?' for _ in _PRINTING_COLUMNS)})"
+)
 
 
 def build(
@@ -711,10 +773,10 @@ def build(
     partway through never leaves a half-written file at `out_path`.
 
     With `printings_path` (default_cards) every printing is streamed once and folded into its oracle card's row:
-    the union of printing-level `is:` tags and "visible if any printing is" (`summarize_printings`). Without it
-    only the representative printing counts.
+    the union of printing-level `is:` tags and "visible if any printing is" (`_summarize_and_collect_printings`),
+    and every printing is inserted into the printings table. Without it only the representative printing counts.
 
-    Returns a stats dict: card_count, face_count, tagged_card_count, duration_seconds.
+    Returns a stats dict: card_count, face_count, tagged_card_count, printing_count, duration_seconds.
     """
     start = time.monotonic()
     out_path = Path(out_path)
@@ -722,7 +784,10 @@ def build(
     tmp_path.unlink(missing_ok=True)
 
     oracle_id_to_tag_slugs = _oracle_id_to_tag_slugs(tags_path)
-    summaries = summarize_printings(printings_path) if printings_path else {}
+    if printings_path:
+        summaries, printing_rows = _summarize_and_collect_printings(printings_path)
+    else:
+        summaries, printing_rows = {}, []
 
     card_count = 0
     face_count = 0
@@ -738,6 +803,11 @@ def build(
                 conn.executemany(_FACE_INSERT_SQL, [[face[c] for c in _FACE_COLUMNS] for face in face_rows])
                 card_count += 1
                 face_count += len(face_rows)
+
+            # Insert printings if we collected any
+            if printing_rows:
+                conn.executemany(_PRINTING_INSERT_SQL, [[row[c] for c in _PRINTING_COLUMNS] for row in printing_rows])
+
             conn.execute(
                 "INSERT INTO meta(key, value) VALUES ('card_count', ?), ('built_at', ?)",
                 (str(card_count), time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())),
@@ -754,6 +824,7 @@ def build(
         "card_count": card_count,
         "face_count": face_count,
         "tagged_card_count": len(oracle_id_to_tag_slugs),
+        "printing_count": len(printing_rows),
         "duration_seconds": round(time.monotonic() - start, 2),
     }
 
