@@ -1,0 +1,59 @@
+name: ci
+
+on:
+  push:
+    branches: [main]
+    tags: ["v*"]
+  pull_request:
+
+permissions:
+  contents: read
+
+env:
+  # Tests use moto for S3; fake credentials so nothing can reach a real account.
+  AWS_ACCESS_KEY_ID: testing
+  AWS_SECRET_ACCESS_KEY: testing
+  AWS_DEFAULT_REGION: us-east-1
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+          cache: pip
+          cache-dependency-path: requirements/*.txt
+      - run: pip install -r requirements/dev.txt
+      - run: ruff check oracle_searcher tests scripts
+      - run: ruff format --check oracle_searcher tests scripts
+      - run: python -m pytest tests api/parsing/tests -q
+
+  terraform:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: hashicorp/setup-terraform@v3
+      - run: terraform fmt -check -recursive
+        working-directory: terraform
+      - run: terraform init -backend=false -input=false
+        working-directory: terraform
+      - run: terraform validate
+        working-directory: terraform
+
+  release:
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: [test, terraform]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+      - run: scripts/build_zip.sh
+      - run: gh release create "$GITHUB_REF_NAME" dist/tcg-oracle-searcher-lambda.zip --title "$GITHUB_REF_NAME" --generate-notes
+        env:
+          GH_TOKEN: ${{ github.token }}
