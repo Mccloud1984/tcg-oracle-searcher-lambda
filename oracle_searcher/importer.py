@@ -21,6 +21,7 @@ import logging
 import re
 import sqlite3
 import time
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
@@ -243,6 +244,42 @@ IS_TAG_CHECKS: dict[str, Any] = {
 }
 
 
+# Tags that read printing fields (promo types, finishes, frame, set type, preview). With a
+# default_cards file these are evaluated on every printing and unioned per oracle card, which is
+# Scryfall's own rule (a card matches when ANY printing matches). The rest are card-level.
+PRINTING_IS_TAGS = frozenset(IS_TAG_CHECKS) - {
+    "commander",
+    "gamechanger",
+    "hybrid",
+    "indicator",
+    "partner",
+    "phyrexian",
+    "reserved",
+    "spell",
+}
+
+
+@dataclass
+class PrintingSummary:
+    """What every printing of one oracle card adds: the union of printing-level tags and any default-visible printing."""
+
+    is_tags: set[str] = field(default_factory=set)
+    any_visible: bool = False
+
+
+def summarize_printings(printings_path: str | Path) -> dict[str, PrintingSummary]:
+    """Stream a default_cards file once into one small `PrintingSummary` per oracle_id (no printing is kept)."""
+    summaries: dict[str, PrintingSummary] = {}
+    for printing in _open_jsonl(printings_path):
+        oracle_id = printing.get("oracle_id")
+        if not oracle_id:
+            continue
+        summary = summaries.setdefault(oracle_id, PrintingSummary())
+        summary.is_tags.update(tag for tag in PRINTING_IS_TAGS if IS_TAG_CHECKS[tag](printing, None, None))
+        summary.any_visible = summary.any_visible or not _is_extra(printing)
+    return summaries
+
+
 def _open_jsonl(path: str | Path) -> Iterator[dict[str, Any]]:
     """Yield decoded JSON objects from a gzipped or plain JSONL file, one per non-blank line."""
     path = Path(path)
@@ -390,8 +427,11 @@ def _is_extra(card: dict[str, Any]) -> bool:
     )
 
 
-def _is_tags(card: dict[str, Any], mana_cost_text: str | None, oracle_text: str | None) -> list[str]:
-    return sorted(tag for tag, check in IS_TAG_CHECKS.items() if check(card, mana_cost_text, oracle_text))
+def _is_tags(
+    card: dict[str, Any], mana_cost_text: str | None, oracle_text: str | None, summary: PrintingSummary | None = None
+) -> list[str]:
+    tags = {tag for tag, check in IS_TAG_CHECKS.items() if check(card, mana_cost_text, oracle_text)}
+    return sorted(tags | summary.is_tags if summary else tags)
 
 
 def _trim_images(image_uris: dict[str, str] | None) -> dict[str, str] | None:
@@ -426,6 +466,7 @@ def _frame_data_array(card: dict[str, Any]) -> list[str]:
 def _build_card_row(
     card: dict[str, Any],
     oracle_id_to_tag_slugs: dict[str, list[str]],
+    summary: PrintingSummary | None = None,
 ) -> dict[str, Any]:
     card_types, card_subtypes = _union_types_and_subtypes(card)
     oracle_text = _combined_oracle_text(card)
@@ -461,7 +502,7 @@ def _build_card_row(
         "card_keywords": json.dumps(sorted({kw.lower() for kw in card.get("keywords") or []})),
         "card_oracle_tags": json.dumps(oracle_id_to_tag_slugs.get(card["oracle_id"], [])),
         "card_art_tags": json.dumps([]),
-        "card_is_tags": json.dumps(_is_tags(card, mana_cost_text, oracle_text)),
+        "card_is_tags": json.dumps(_is_tags(card, mana_cost_text, oracle_text, summary)),
         "card_legalities": json.dumps(card.get("legalities") or {}),
         "card_rarity_int": rarity_text_to_int(rarity) if rarity else None,
         "card_set_code": set_code.lower() if isinstance(set_code, str) else set_code,
@@ -478,7 +519,7 @@ def _build_card_row(
         "price_eur": maybe_float(prices.get("eur")),
         "price_tix": maybe_float(prices.get("tix")),
         "game_changer": 1 if card.get("game_changer") else 0,
-        "is_extra": 1 if _is_extra(card) else 0,
+        "is_extra": 1 if (not summary.any_visible if summary else _is_extra(card)) else 0,
         "card_json": json.dumps(_trim_card_json(card)),
     }
 
@@ -632,11 +673,20 @@ _FACE_COLUMNS = [
 _FACE_INSERT_SQL = f"INSERT INTO card_faces ({', '.join(_FACE_COLUMNS)}) VALUES ({', '.join('?' for _ in _FACE_COLUMNS)})"
 
 
-def build(cards_path: str | Path, tags_path: str | Path, out_path: str | Path) -> dict[str, Any]:
+def build(
+    cards_path: str | Path,
+    tags_path: str | Path,
+    out_path: str | Path,
+    printings_path: str | Path | None = None,
+) -> dict[str, Any]:
     """Build the SQLite card file at `out_path` from the two bulk JSONL files.
 
     Writes to `out_path` + ".tmp" and renames it into place at the end, so a build that raises
     partway through never leaves a half-written file at `out_path`.
+
+    With `printings_path` (default_cards) every printing is streamed once and folded into its oracle card's row:
+    the union of printing-level `is:` tags and "visible if any printing is" (`summarize_printings`). Without it
+    only the representative printing counts.
 
     Returns a stats dict: card_count, face_count, tagged_card_count, duration_seconds.
     """
@@ -646,6 +696,7 @@ def build(cards_path: str | Path, tags_path: str | Path, out_path: str | Path) -
     tmp_path.unlink(missing_ok=True)
 
     oracle_id_to_tag_slugs = _oracle_id_to_tag_slugs(tags_path)
+    summaries = summarize_printings(printings_path) if printings_path else {}
 
     card_count = 0
     face_count = 0
@@ -654,7 +705,7 @@ def build(cards_path: str | Path, tags_path: str | Path, out_path: str | Path) -
         try:
             create_schema(conn)
             for card in _open_jsonl(cards_path):
-                row = _build_card_row(card, oracle_id_to_tag_slugs)
+                row = _build_card_row(card, oracle_id_to_tag_slugs, summaries.get(card["oracle_id"]))
                 cursor = conn.execute(_CARD_INSERT_SQL, [row[c] for c in _CARD_COLUMNS])
                 card_id = cursor.lastrowid
                 face_rows = _build_face_rows(card_id, card)
@@ -731,10 +782,11 @@ def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--cards", required=True, help="path to oracle_cards.jsonl(.gz)")
     parser.add_argument("--tags", required=True, help="path to oracle_tags.jsonl(.gz)")
+    parser.add_argument("--printings", help="path to default_cards.jsonl(.gz); optional")
     parser.add_argument("--out", required=True, help="path to write the SQLite card file to")
     args = parser.parse_args()
 
-    stats = build(args.cards, args.tags, args.out)
+    stats = build(args.cards, args.tags, args.out, args.printings)
     logger.info("Built %s: %s", args.out, stats)
 
     problems = check(args.out)

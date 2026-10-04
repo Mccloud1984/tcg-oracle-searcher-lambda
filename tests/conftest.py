@@ -48,3 +48,6 @@ def load_fixture_cards() -> list[dict[str, Any]]:
     """Every raw card dict in the fixture oracle_cards file, for tests that need the Scryfall source."""
     with CARDS_FIXTURE.open(encoding="utf-8") as handle:
         return [json.loads(line) for line in handle if line.strip()]
+
+
+PRINTINGS_FIXTURE = FIXTURES_DIR / "default_cards_sample.jsonl"
