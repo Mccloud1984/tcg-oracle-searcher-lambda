@@ -99,15 +99,20 @@ _NON_ALNUM_RE = re.compile(r"[^a-z0-9]")
 _RUN_OF_SPACES_RE = re.compile(r"[ \t]+")
 _SPACE_AROUND_NEWLINE_RE = re.compile(r" *\n *")
 
-# Both spellings of the keyword grant Commander partner eligibility ("any flavor of Commander
-# Partner mechanic", per Scryfall's own syntax docs). Sylvan's admin_resource.py checks only the
-# literal "Partner" keyword on the stated assumption that "Partner with <name>" cards carry a
-# plain "Partner" keyword alongside it -- false against the 2026-10-03 bulk file, which has
-# "Partner with" as its own distinct keyword string on 54 cards that carry no plain "Partner"
-# (verified: `grep`-equivalent scan of oracle_cards.jsonl.gz's `keywords` arrays). Checking only
-# "Partner" undercounts is:partner at 143 vs. live 228; adding "Partner with" gets to 197 -- the
-# residual is worth a note in docs/is-tags.md, not chased further here.
-_PARTNER_KEYWORDS = frozenset({"Partner", "Partner with"})
+# Scryfall's is:partner is "any flavor of Commander partner mechanic" on a legendary card (live
+# 2026-10-03: 228 cards; docs/is-tags.md). Keywords alone match only 130: the Backgrounds and the
+# Time Lord Doctors carry no keyword. "Partner with" is its own keyword string on some cards. The
+# non-legendary Battlebond partners and the other "Doctor" subtypes (Doctor Strange) are not in it.
+_PARTNER_KEYWORDS = frozenset({"partner", "partner with", "friends forever", "choose a background", "doctor's companion"})
+_PARTNER_TYPE_LINE_RE = re.compile(r"\bBackground\b|\bTime Lord Doctor\b")
+
+
+def _is_partner(card: dict[str, Any]) -> bool:
+    type_line = card.get("type_line") or ""
+    if "Legendary" not in type_line:
+        return False
+    keywords = {keyword.lower() for keyword in card.get("keywords") or []}
+    return bool(keywords & _PARTNER_KEYWORDS or _PARTNER_TYPE_LINE_RE.search(type_line))
 
 
 # Ported from Sylvan's api.admin_resource.BOOLEAN_IS_TAGS (a SQL expression per tag, evaluated
@@ -219,7 +224,7 @@ IS_TAG_CHECKS: dict[str, Any] = {
     "masterpiece": lambda c, *_: c.get("set_type") == "masterpiece",
     "media_insert": lambda c, *_: "mediainsert" in _promo_types(c),
     "nonfoil": lambda c, *_: bool(c.get("nonfoil")),
-    "partner": lambda c, *_: bool(_PARTNER_KEYWORDS & set(c.get("keywords") or [])),
+    "partner": lambda c, *_: _is_partner(c),
     "phyrexian": lambda _c, mana_cost_text, oracle_text: bool(
         _PHYREXIAN_MANA_RE.search((mana_cost_text or "") + (oracle_text or ""))
     ),

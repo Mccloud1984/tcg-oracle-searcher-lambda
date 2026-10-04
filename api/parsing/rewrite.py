@@ -84,8 +84,7 @@ _DERIVED_EXPANSIONS: dict[tuple[str, str], str] = {
     # bulk export; ancestor propagation makes parent slugs self-updating as
     # new cycles are tagged. Plain parent tags preferred where they exist
     # (bounceland/gainland/shockland per review). Deviations from Scryfall's
-    # own is: membership are accepted as community sentiment -- otag:shockland
-    # includes Multiversal Passage, otag:gainland reaches newer
+    # own is: membership are accepted as community sentiment -- otag:gainland reaches newer
     # enters-tapped-gain-life cycles Scryfall's list lacks -- with counts
     # last validated against api.scryfall.com on 2026-08-07.
     ("is", "battleland"): "otag:cycle-tangoland",  # 10
@@ -110,7 +109,7 @@ _DERIVED_EXPANSIONS: dict[tuple[str, str], str] = {
     # otherwise share the wording. 10, name-verified (5 shadowlands + 5
     # snarls); no cycle tag exists for the SOI half.
     ("is", "shadowland"): "t:land o:/reveal an? (Plains|Island|Swamp|Mountain|Forest)/",
-    ("is", "shockland"): "otag:shockland",  # 11, includes Multiversal Passage
+    ("is", "shockland"): "otag:shockland -otag:color-choose-land",  # 10, exact: Scryfall leaves Multiversal Passage out
     ("is", "slowland"): "otag:cycle-slowland",  # 10, exact
     ("is", "snarl"): "t:land o:/reveal an? (Plains|Island|Swamp|Mountain|Forest)/",  # same family; Scryfall accepts both
     (

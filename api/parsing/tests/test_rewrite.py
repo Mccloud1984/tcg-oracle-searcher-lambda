@@ -46,7 +46,7 @@ EQUIVALENCES = [
     ("is:bondland", "otag:cycle-bondland"),
     ("is:battleland", "otag:cycle-tangoland"),
     ("is:tangoland", "otag:cycle-tangoland"),
-    ("is:shockland", "otag:shockland"),
+    ("is:shockland", "otag:shockland -otag:color-choose-land"),
     ("is:dual", "otag:cycle-abu-dual-land"),
     ("is:canopyland", "otag:cycle-horizon-land"),
     ("is:scryland", "otag:cycle-block-ths-scry-land"),
