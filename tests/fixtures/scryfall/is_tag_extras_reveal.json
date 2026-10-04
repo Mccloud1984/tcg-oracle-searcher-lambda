@@ -1,0 +1,19 @@
+{
+ "_note": "Live 2026-10-03: GET /cards/search?unique=cards&q=<q> total_cards only (14 requests, 1/s). Default search vs the same query with include:extras. is:funny shows every funny card without include:extras (1476 both ways), so it reveals extras the way t:token does. is:digital, is:alchemy and is:unique show fewer than with include:extras, so they do not reveal; the others (brawler, oathbreaker, has:watermark) have no hidden cards in either mode.",
+ "total_cards": {
+  "is:funny": 1476,
+  "is:funny include:extras": 1476,
+  "is:digital": 7154,
+  "is:digital include:extras": 7386,
+  "is:alchemy": 824,
+  "is:alchemy include:extras": 966,
+  "is:unique": 16115,
+  "is:unique include:extras": 20516,
+  "is:brawler": 2411,
+  "is:brawler include:extras": 2411,
+  "is:oathbreaker": 295,
+  "is:oathbreaker include:extras": 295,
+  "has:watermark": 4691,
+  "has:watermark include:extras": 4691
+ }
+}

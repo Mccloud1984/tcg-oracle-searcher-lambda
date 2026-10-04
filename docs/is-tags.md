@@ -65,3 +65,12 @@ The compiler raises `Unsupported` for any `is:`/`has:` value that is neither rew
 |---|---|
 | atypical | frame treatment of a printing (not on an oracle card) |
 | default | "default" frame treatment of a printing |
+
+## Extras (`search.EXTRA_REVEALING_IS_TAGS`)
+
+Cards flagged `is_extra` are hidden unless the query names an extra type (`t:token`, ...) or `is:funny`. Live 2026-10-03
+(`tests/fixtures/scryfall/is_tag_extras_reveal.json`): `is:funny` is 1476 with and without `include:extras`, so it
+reveals. `is:digital` (7154 vs 7386 with extras), `is:alchemy` (824 vs 966) and `is:unique` (16115 vs 20516) keep
+hiding extras on Scryfall, so they do not reveal here either. `is:brawler`, `is:oathbreaker` and `has:watermark` have
+no hidden cards in either mode. The remaining digital (-2), brawler (-1), duelcommander (-4) and unique (-646) gaps
+are not explained by extras gating; not investigated further.

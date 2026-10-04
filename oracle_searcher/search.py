@@ -60,6 +60,12 @@ _NULLS_LAST_ORDERS = frozenset({"edhrec", "usd"})
 # Shared with sqlite_compiler.EXTRA_TYPE_VALUES (same words, same reason: these are exactly the
 # type-line words the importer stores in card_types despite Sylvan not recognising them as types).
 
+# `is:` values that reveal is_extra rows the same way. Only `funny`: live 2026-10-03 (see
+# tests/fixtures/scryfall/is_tag_extras_reveal.json) `is:funny` returns all 1476 funny cards with or without
+# `include:extras`, whereas is:digital (7154 vs 7386 with extras), is:alchemy (824 vs 966) and is:unique
+# (16115 vs 20516) keep hiding extras, so those do not reveal.
+EXTRA_REVEALING_IS_TAGS = frozenset({"funny"})
+
 
 @dataclass(frozen=True)
 class SearchResult:
@@ -90,11 +96,13 @@ def register_regexp(conn: sqlite3.Connection) -> None:
 def _leaf_names_an_extra_type(node: QueryNode) -> bool:
     if not isinstance(node, CardBinaryOperatorNode):
         return False
-    lhs = node.lhs
-    if not isinstance(lhs, CardAttributeNode) or lhs.attribute_name not in ("card_types", "card_subtypes"):
+    lhs, rhs = node.lhs, node.rhs
+    if not isinstance(lhs, CardAttributeNode) or not isinstance(rhs, StringValueNode):
         return False
-    rhs = node.rhs
-    return isinstance(rhs, StringValueNode) and rhs.value.strip().title() in EXTRA_TYPE_VALUES
+    value = rhs.value.strip()
+    if lhs.attribute_name in ("card_types", "card_subtypes"):
+        return value.title() in EXTRA_TYPE_VALUES
+    return lhs.attribute_name == "card_is_tags" and value.lower() in EXTRA_REVEALING_IS_TAGS
 
 
 def _reveals_extras(node: QueryNode) -> bool:

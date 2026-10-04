@@ -2,10 +2,16 @@
 
 from __future__ import annotations
 
+import json
+from typing import TYPE_CHECKING
+
 import pytest
 
 from oracle_searcher.search import SearchResult, Unsupported, search
 from tests.helpers import insert_named_card, make_db
+
+if TYPE_CHECKING:
+    import sqlite3
 
 LLANOWAR_ELVES = "Llanowar Elves"
 SOL_RING = "Sol Ring"
@@ -53,6 +59,47 @@ def test_negated_extra_type_does_not_reveal_it() -> None:
     result = search(conn, "-t:token")
     names = {card["name"] for card in result.data}
     assert names == {LLANOWAR_ELVES}
+
+
+FUNNY_PLAYTEST_CARD = "Sol Ring"  # stands in for a funny-set card hidden by is_extra (name is irrelevant)
+
+
+def _db_with_hidden_funny_card() -> sqlite3.Connection:
+    conn = make_db()
+    insert_named_card(conn, LLANOWAR_ELVES)
+    insert_named_card(conn, FUNNY_PLAYTEST_CARD, is_extra=1, card_is_tags='["funny"]')
+    return conn
+
+
+def test_is_funny_reveals_extras() -> None:
+    """`is:funny` reveals extras like `t:token` does.
+
+    Live 2026-10-03 (tests/fixtures/scryfall/is_tag_extras_reveal.json): 1476 cards with or without
+    `include:extras`, while our import hides all but 134 of them.
+    """
+    names = {card["name"] for card in search(_db_with_hidden_funny_card(), "is:funny").data}
+    assert names == {FUNNY_PLAYTEST_CARD}
+
+
+def test_negated_is_funny_does_not_reveal_extras() -> None:
+    names = {card["name"] for card in search(_db_with_hidden_funny_card(), "-is:funny").data}
+    assert names == {LLANOWAR_ELVES}
+
+
+def test_funny_extras_stay_hidden_without_naming_funny() -> None:
+    names = {card["name"] for card in search(_db_with_hidden_funny_card(), "").data}
+    assert names == {LLANOWAR_ELVES}
+
+
+@pytest.mark.parametrize("tag", ["digital", "alchemy", "unique"])
+def test_other_swept_tags_do_not_reveal_extras(tag: str) -> None:
+    """Scryfall keeps hiding extras for these, so they must not reveal.
+
+    Live 2026-10-03: is:digital 7154 vs 7386 with include:extras, is:alchemy 824 vs 966, is:unique 16115 vs 20516.
+    """
+    conn = make_db()
+    insert_named_card(conn, FUNNY_PLAYTEST_CARD, is_extra=1, card_is_tags=json.dumps([tag]))
+    assert search(conn, f"is:{tag}").data == []
 
 
 # ── ordering ──────────────────────────────────────────────────────────────────────────────────
