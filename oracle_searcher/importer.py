@@ -230,11 +230,12 @@ def _is_scryfall_card_preview(card: dict[str, Any]) -> bool:
     """Previewed on a Scryfall card page.
 
     Scryfall's is:scryfallpreview is 6 cards; the 321 Secret Lair printings whose preview source is also "Scryfall"
-    link a set page (/sets/slz?order=spoiled) and do not count. A preview with no link at all does (Dig Through
-    Time's slz printing; 2026-10-04: 4 cards before, 5 of the live 6 after, the sixth postdates the bulk file).
+    link a set page (/sets/slz?order=spoiled) and do not count. The 93 with no link at all (mostly slz) do not
+    either: counting them gave 35 cards vs 6 (tried 2026-10-04). Live also lists Dig Through Time and Goblin
+    Cratermaker, whose bulk previews are link-less or absent; we stay 2 under.
     """
     preview = card.get("preview") or {}
-    return preview.get("source") == "Scryfall" and "/sets/" not in (preview.get("source_uri") or "")
+    return preview.get("source") == "Scryfall" and "scryfall.com/card/" in (preview.get("source_uri") or "")
 
 
 IS_TAG_CHECKS: dict[str, Any] = {

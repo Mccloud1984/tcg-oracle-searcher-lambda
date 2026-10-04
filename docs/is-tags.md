@@ -74,3 +74,39 @@ reveals. `is:digital` (7154 vs 7386 with extras), `is:alchemy` (824 vs 966) and 
 hiding extras on Scryfall, so they do not reveal here either. `is:brawler`, `is:oathbreaker` and `has:watermark` have
 no hidden cards in either mode. The remaining digital (-2), brawler (-1), duelcommander (-4) and unique (-646) gaps
 are not explained by extras gating; not investigated further.
+
+## Parity 2026-10-04 (`scripts/is_tag_parity.py`, full build with `default_cards`, live sweep rerun the same day)
+
+Our count vs Scryfall's `total_cards`, found by diffing card lists (ours vs Scryfall's results paged at 1 request/second).
+Fixed in `importer.py` (each with a regression test cut from real bulk rows):
+
+| Tag | Before | After | Cause |
+|---|---|---|---|
+| spell | +200 | 0 | not a Land front face was too loose: Scryfall's `-is:spell` is every Land plus Attractions, Contraptions, Stickers, Conspiracies and Dungeons, and a Land // Adventure card is a spell |
+| old, new | -2831 / -333 | 0 / +1 | `is:old`/`is:new` are `frame:` unions and `card_frame_data` was the representative printing's frame only; it is now the union over every visible printing (also fixes `frame:1993` and friends) |
+| full | -23 | +1 | 28 reversible_card printings (83 in the file) have no top-level `oracle_id`, only one per face, and were skipped |
+| hires, nonfoil | +23, +30 | 0 | 35 cards Scryfall's default search hides that we showed, all legal nowhere: digital-only (Astral `past`, Sega `psdg`, the mtgo Gleemox), typed `Card`/`Stickers`/`Token ...`, or only in hidden printings. A printing that exists only in Astral or Sega is hidden even for a legal card (Arden Angel). Dungeons stay visible, incl. the double_faced_token Undercity |
+| promo, arena_league, release, datestamped, judge_gift | +10, +6, +1, +1, +1 | 0 | silver-border promo printings legal nowhere (the pal04 Un-card promos) are hidden. The shown cards now match Scryfall's 33603 exactly |
+| hybrid | +7 | 0 | Prepare-layout cards cost `{B/G}` only on the second face; Scryfall reads the front face |
+| commander | +4 | +1 | meld results are never commanders (5 cards); Grist, the Hunger Tide is (a 1/1 creature in the command zone) |
+
+Also: `variation` printings are hidden (Scryfall's `include:variations`), which removes one phantom `frame:2015` match.
+
+Left as they are (not worth a rule, or Scryfall's own behaviour):
+
+- **dfc -2378**: Scryfall's `is:dfc` also counts art_series (2243), double_faced_token (80) and reversible_card (72) entries,
+  which are not in our corpus on purpose (the rewrite in `api/parsing/rewrite.py` documents it).
+- **has:watermark -49** and **reserved -4** (also permanent -4): these queries make Scryfall show cards its default
+  search hides. All 49 missing `has:watermark` cards are extras (tokens, memorabilia, Un-cards) and the 4 `is:reserved`
+  cards are the content-warning ones (Cleanse, Imprison, Invoke Prejudice, Jihad; `!"Cleanse"` is 0, `!"Cleanse"
+  is:reserved` is 1). Fix is in `search.EXTRA_REVEALING_IS_TAGS` (add `watermark`, `reserved`), not in the importer.
+- **foil, full, new, reprint, universesbeyond +1 each, new +1**: one card, Blacker Lotus. Its Secret Lair printing (a
+  full-art, foil, reprint, Universes Beyond printing; legal nowhere, borderless) is in none of Scryfall's lists although
+  the ugl printing shows the card. No rule found that does not also hide Pinkie Pie (same set type, legal nowhere).
+- **scryfallpreview 4 vs 6**: Dig Through Time and Goblin Cratermaker have a link-less or no preview in the bulk file;
+  counting link-less previews gives 35. Probably newer than the bulk file.
+- **vanilla -11, bear +10, modal -4, party/outlaw -4, creatureland/manland -2, filterland -2, storageland +3,
+  gainland +28, frenchvanilla +259**: otag/oracle-text approximations, documented in `api/parsing/rewrite.py`; party and
+  outlaw each miss four Zendikar Rising / Baldur's Gate cards that Scryfall tags; not investigated further.
+- **frame:2015 +3, frame:2003 +1 (before the pal04 rule)**: Force Spike (j21) and Stonybrook Schoolmaster (yecl) are
+  Arena-only printings the live site does not list; no rule found.

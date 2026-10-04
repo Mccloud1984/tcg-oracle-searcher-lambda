@@ -242,26 +242,10 @@ def test_silver_border_promo_of_an_un_card_adds_no_tags(tmp_path: Path) -> None:
 
 def _misc_conn(tmp_path: Path) -> sqlite3.Connection:
     out = tmp_path / "misc.sqlite"
-    build(
-        FIXTURES_DIR / "is_misc_cards.jsonl",
-        TAGS_FIXTURE,
-        out,
-        printings_path=FIXTURES_DIR / "is_misc_printings.jsonl",
-    )
+    build(FIXTURES_DIR / "is_misc_cards.jsonl", TAGS_FIXTURE, out)
     conn = sqlite3.connect(out)
     conn.row_factory = sqlite3.Row
     return conn
-
-
-def test_scryfall_preview_without_a_link_counts_but_a_set_page_link_does_not(tmp_path: Path) -> None:
-    """Dig Through Time's slz preview is source Scryfall with no source_uri; Ornithopter's links /sets/slz.
-
-    Live is:scryfallpreview is 6; we found 4 because a missing source_uri failed the "scryfall.com/card/" test
-    (2026-10-04). The 321 Secret Lair set-page links still do not count. Real 2026-10-03 rows.
-    """
-    conn = _misc_conn(tmp_path)
-    assert "scryfallpreview" in _tags(conn, "Dig Through Time")
-    assert "scryfallpreview" not in _tags(conn, "Ornithopter")
 
 
 @pytest.mark.parametrize(
