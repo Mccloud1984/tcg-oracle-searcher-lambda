@@ -219,10 +219,11 @@ def _is_scryfall_card_preview(card: dict[str, Any]) -> bool:
     """Previewed on a Scryfall card page.
 
     Scryfall's is:scryfallpreview is 6 cards; the 321 Secret Lair printings whose preview source is also "Scryfall"
-    link a set page (/sets/slz?order=spoiled) and do not count.
+    link a set page (/sets/slz?order=spoiled) and do not count. A preview with no link at all does (Dig Through
+    Time's slz printing; 2026-10-04: 4 cards before, 5 of the live 6 after, the sixth postdates the bulk file).
     """
     preview = card.get("preview") or {}
-    return preview.get("source") == "Scryfall" and "scryfall.com/card/" in (preview.get("source_uri") or "")
+    return preview.get("source") == "Scryfall" and "/sets/" not in (preview.get("source_uri") or "")
 
 
 IS_TAG_CHECKS: dict[str, Any] = {
@@ -241,7 +242,7 @@ IS_TAG_CHECKS: dict[str, Any] = {
     "giftbox": lambda c, *_: "giftbox" in _promo_types(c),
     "glossy": lambda c, *_: "glossy" in _promo_types(c),
     "hires": lambda c, *_: bool(c.get("highres_image")),
-    "hybrid": lambda _c, mana_cost_text, _o: bool(_HYBRID_MANA_RE.search(mana_cost_text or "")),
+    "hybrid": lambda c, *_: bool(_HYBRID_MANA_RE.search(_front_face_mana_cost(c))),
     "indicator": lambda c, *_: _has_color_indicator(c),
     "instore": lambda c, *_: "instore" in _promo_types(c),
     "intro_pack": lambda c, *_: "intropack" in _promo_types(c),
