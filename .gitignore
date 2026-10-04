@@ -6,3 +6,5 @@ __pycache__/
 *.sqlite.gz
 .scratch/
 dist/
+.terraform/
+.terraform.lock.hcl
