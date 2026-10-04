@@ -86,6 +86,18 @@ data "aws_iam_policy_document" "search_s3" {
     actions   = ["s3:GetObject"]
     resources = [local.cards_arn]
   }
+
+  # Without ListBucket, S3 answers a missing object with AccessDenied instead of NoSuchKey, so "no file yet"
+  # (the first import, before any sweep) looked like a failure. Limited to the prefixes this function reads.
+  statement {
+    actions   = ["s3:ListBucket"]
+    resources = [local.bucket_arn]
+    condition {
+      test     = "StringLike"
+      variable = "s3:prefix"
+      values   = ["cards/*"]
+    }
+  }
 }
 
 # The import reads the sweep file the sweep Lambda writes.
@@ -99,12 +111,36 @@ data "aws_iam_policy_document" "import_s3" {
     actions   = ["s3:GetObject"]
     resources = [local.sweeps_arn]
   }
+
+  # Without ListBucket, S3 answers a missing object with AccessDenied instead of NoSuchKey, so "no file yet"
+  # (the first import, before any sweep) looked like a failure. Limited to the prefixes this function reads.
+  statement {
+    actions   = ["s3:ListBucket"]
+    resources = [local.bucket_arn]
+    condition {
+      test     = "StringLike"
+      variable = "s3:prefix"
+      values   = ["cards/*", "sweeps/*"]
+    }
+  }
 }
 
 data "aws_iam_policy_document" "sweep_s3" {
   statement {
     actions   = ["s3:GetObject", "s3:PutObject"]
     resources = [local.sweeps_arn]
+  }
+
+  # Without ListBucket, S3 answers a missing object with AccessDenied instead of NoSuchKey, so "no file yet"
+  # (the first import, before any sweep) looked like a failure. Limited to the prefixes this function reads.
+  statement {
+    actions   = ["s3:ListBucket"]
+    resources = [local.bucket_arn]
+    condition {
+      test     = "StringLike"
+      variable = "s3:prefix"
+      values   = ["sweeps/*"]
+    }
   }
 }
 
