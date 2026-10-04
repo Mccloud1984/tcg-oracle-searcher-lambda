@@ -146,6 +146,15 @@ def _commander_front_face(card: dict[str, Any]) -> dict[str, Any]:
     return faces[0] if faces else card
 
 
+# "As long as Grist isn't on the battlefield, it's a 1/1 Insect creature": a Legendary non-creature that is a creature
+# in the command zone. Scryfall's is:commander includes it (live 2026-10-04); no other card has the text.
+_COMMAND_ZONE_CREATURE_RE = re.compile(r"isn't on the battlefield, it's an? [^.]*\bcreature\b")
+
+
+def _is_meld_result(card: dict[str, Any]) -> bool:
+    return any(part.get("id") == card.get("id") and part.get("component") == "meld_result" for part in card.get("all_parts") or [])
+
+
 def _is_commander_eligible(card: dict[str, Any], oracle_text: str | None) -> bool:
     """True for a card Scryfall's `is:commander` returns: can legally be named a commander.
 
@@ -175,10 +184,12 @@ def _is_commander_eligible(card: dict[str, Any], oracle_text: str | None) -> boo
     is_legendary = "Legendary" in type_line
     is_background = "Background" in type_line
     has_printed_toughness = "toughness" in front
-    grants_eligibility = "can be your commander" in (oracle_text or "").lower()
-    structurally_eligible = is_legendary and (has_printed_toughness or is_background)
+    text = (oracle_text or "").lower()
+    grants_eligibility = "can be your commander" in text
+    command_zone_creature = is_legendary and bool(_COMMAND_ZONE_CREATURE_RE.search(text))
+    structurally_eligible = (is_legendary and (has_printed_toughness or is_background)) or command_zone_creature
     banned_as_commander = (card.get("legalities") or {}).get("commander") == "banned"
-    return (structurally_eligible or grants_eligibility) and not banned_as_commander
+    return (structurally_eligible or grants_eligibility) and not banned_as_commander and not _is_meld_result(card)
 
 
 def _has_color_indicator(card: dict[str, Any]) -> bool:
