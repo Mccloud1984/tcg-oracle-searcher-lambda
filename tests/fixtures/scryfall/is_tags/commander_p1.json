@@ -1,0 +1,883 @@
+{
+ "object": "list",
+ "total_cards": 3731,
+ "has_more": true,
+ "next_page": "https://api.scryfall.com/cards/search?format=json&include_extras=false&include_multilingual=false&include_variations=false&order=name&page=2&q=is%3Acommander&unique=cards",
+ "data": [
+  {
+   "object": "card",
+   "oracle_id": "f3176779-74f7-4136-a701-438feeead7a0",
+   "name": "Aang, Airbending Master"
+  },
+  {
+   "object": "card",
+   "oracle_id": "e46b2ac6-97d6-48f2-aba3-cd92f8e092c6",
+   "name": "Aang, Air Nomad"
+  },
+  {
+   "object": "card",
+   "oracle_id": "854278bc-2bcf-45dd-abd5-6aca7a1e5fc9",
+   "name": "Aang, A Lot to Learn"
+  },
+  {
+   "object": "card",
+   "oracle_id": "481c3e14-b670-4fab-aa9f-6ce5b514096d",
+   "name": "Aang and Katara"
+  },
+  {
+   "object": "card",
+   "oracle_id": "96e5d4a1-e59f-4140-823f-a17e15ee5d8d",
+   "name": "Aang, at the Crossroads // Aang, Destined Savior"
+  },
+  {
+   "object": "card",
+   "oracle_id": "cbf09050-39d0-463b-96db-9e22011ae0d8",
+   "name": "Aang, Swift Savior // Aang and La, Ocean's Fury"
+  },
+  {
+   "object": "card",
+   "oracle_id": "70564c3a-858f-498e-8b92-acb3ca54ae7e",
+   "name": "Aang, the Last Airbender"
+  },
+  {
+   "object": "card",
+   "oracle_id": "405c4a7b-dbb3-48a1-9205-7dbe6e2ad363",
+   "name": "Aatchik, Emerald Radian"
+  },
+  {
+   "object": "card",
+   "oracle_id": "8dedb9a7-0afa-4dff-b124-2344c170f11a",
+   "name": "Abaddon the Despoiler"
+  },
+  {
+   "object": "card",
+   "oracle_id": "e05efd01-0202-4bd6-bac6-c6210819d463",
+   "name": "Abby, Merciless Soldier"
+  },
+  {
+   "object": "card",
+   "oracle_id": "cab092f9-b7ff-43b9-935f-310869a4daf8",
+   "name": "Abdel Adrian, Gorion's Ward"
+  },
+  {
+   "object": "card",
+   "oracle_id": "48a773d0-c433-4463-b50f-b6d4604a042c",
+   "name": "Abigale, Eloquent First-Year"
+  },
+  {
+   "object": "card",
+   "oracle_id": "2f5f46ed-b8aa-4864-bd20-17281d4632bf",
+   "name": "Abigale, Poet Laureate // Heroic Stanza"
+  },
+  {
+   "object": "card",
+   "oracle_id": "e7436d37-c331-4524-b5d4-861e9d25bfc5",
+   "name": "Abomination, Irradiated Brute"
+  },
+  {
+   "object": "card",
+   "oracle_id": "5146ba3f-2c5f-4a86-95d7-a34ce1e842b0",
+   "name": "Abomination of Llanowar"
+  },
+  {
+   "object": "card",
+   "oracle_id": "72101185-4336-480a-b4d7-f8ceb0007a51",
+   "name": "Abomination, Terrifying Titan"
+  },
+  {
+   "object": "card",
+   "oracle_id": "e0b12c48-7234-40b5-a84c-6901d2b4e5b0",
+   "name": "Abomination, World Ravager"
+  },
+  {
+   "object": "card",
+   "oracle_id": "d4d44264-b276-4bd7-8fbe-6af292b08773",
+   "name": "Aboshan, Cephalid Emperor"
+  },
+  {
+   "object": "card",
+   "oracle_id": "d4fddf20-6b3a-42c3-a245-002dacbb4725",
+   "name": "Absolute Virtue"
+  },
+  {
+   "object": "card",
+   "oracle_id": "ec8e310f-e871-498f-8d80-c3617c5e1433",
+   "name": "Absorbing Man"
+  },
+  {
+   "object": "card",
+   "oracle_id": "a1afb796-1b0b-4f41-9c8f-5320c9af5989",
+   "name": "Absorbing Man and Titania"
+  },
+  {
+   "object": "card",
+   "oracle_id": "eaa9baac-72f2-4bde-9146-860878d9860b",
+   "name": "Abuelo, Ancestral Echo"
+  },
+  {
+   "object": "card",
+   "oracle_id": "50d0d870-fe3d-44a2-ad6e-93307a1fb468",
+   "name": "Ace, Fearless Rebel"
+  },
+  {
+   "object": "card",
+   "oracle_id": "31b4e85d-89fc-4712-8f05-7ec097b1d3b6",
+   "name": "Acererak the Archlich"
+  },
+  {
+   "object": "card",
+   "oracle_id": "b921a672-721e-4bd8-a10b-a6de8c13c7d8",
+   "name": "Achilles Davenport"
+  },
+  {
+   "object": "card",
+   "oracle_id": "fcdfe9d5-2743-4d3e-ab57-bf0f96beaa15",
+   "name": "Aclazotz, Deepest Betrayal // Temple of the Dead"
+  },
+  {
+   "object": "card",
+   "oracle_id": "38477748-bc57-449c-afe1-c5f34caf8eff",
+   "name": "Acolyte of Bahamut"
+  },
+  {
+   "object": "card",
+   "oracle_id": "c4edcdc0-91de-410c-95dd-219efcef692a",
+   "name": "Acornelia, Fashionable Filcher"
+  },
+  {
+   "object": "card",
+   "oracle_id": "18f34bfd-7675-49df-91ea-695c510cd3c3",
+   "name": "Adamaro, First to Desire"
+  },
+  {
+   "object": "card",
+   "oracle_id": "657a4500-4b47-4c78-945b-a7791af7d10e",
+   "name": "Adelbert Steiner"
+  },
+  {
+   "object": "card",
+   "oracle_id": "38515f89-348b-4cf3-b7bd-1f6fe4ce2fba",
+   "name": "Adeline, Resplendent Cathar"
+  },
+  {
+   "object": "card",
+   "oracle_id": "850eb3c3-029b-49b0-91a9-6daeb1b3a9e8",
+   "name": "Adeliz, the Cinder Wind"
+  },
+  {
+   "object": "card",
+   "oracle_id": "e30d9e08-cf88-4e2d-95e1-7144d8fea5c7",
+   "name": "Ad\u00e9wal\u00e9, Breaker of Chains"
+  },
+  {
+   "object": "card",
+   "oracle_id": "43b5e462-d860-473d-828f-6c513fc7768a",
+   "name": "Admiral Beckett Brass"
+  },
+  {
+   "object": "card",
+   "oracle_id": "4df179b4-7c6b-4e63-9d7d-62f4df377989",
+   "name": "Admiral Brass, Unsinkable"
+  },
+  {
+   "object": "card",
+   "oracle_id": "94779ca4-c202-4163-9c77-1036921a34bc",
+   "name": "Adrestia"
+  },
+  {
+   "object": "card",
+   "oracle_id": "de23275e-e9c1-4151-aed8-f79ead03d5d4",
+   "name": "Adriana, Captain of the Guard"
+  },
+  {
+   "object": "card",
+   "oracle_id": "af566158-23b2-4f91-8d59-a58342a9f576",
+   "name": "Adric, Mathematical Genius"
+  },
+  {
+   "object": "card",
+   "oracle_id": "12a6cad9-eb42-43bd-9e68-aaf862cd83db",
+   "name": "Adrix and Nev, Twincasters"
+  },
+  {
+   "object": "card",
+   "oracle_id": "aefd49a4-ecec-42cb-b882-e5db7f81eff8",
+   "name": "Adun Oakenshield"
+  },
+  {
+   "object": "card",
+   "oracle_id": "592d847e-e3f3-425d-89f9-01ab533ad581",
+   "name": "Aegar, the Freezing Flame"
+  },
+  {
+   "object": "card",
+   "oracle_id": "172a8f58-c420-4497-b962-c5853f923667",
+   "name": "Aerid Konstrari"
+  },
+  {
+   "object": "card",
+   "oracle_id": "dd9a6f6b-f9b7-4292-bc80-b7da326de032",
+   "name": "Aerith Gainsborough"
+  },
+  {
+   "object": "card",
+   "oracle_id": "d6cba688-faff-4d9f-8148-37d389fa5fb3",
+   "name": "Aerith, Last Ancient"
+  },
+  {
+   "object": "card",
+   "oracle_id": "6511f317-bd38-46d0-b800-7125a3f420da",
+   "name": "Aesi, Tyrant of Gyre Strait"
+  },
+  {
+   "object": "card",
+   "oracle_id": "44600a74-9584-488b-a342-2fccd8fa7599",
+   "name": "Aeve, Progenitor Ooze"
+  },
+  {
+   "object": "card",
+   "oracle_id": "f398d222-f8e7-4983-9a77-267adef7f551",
+   "name": "Agatha of the Vile Cauldron"
+  },
+  {
+   "object": "card",
+   "oracle_id": "ddf7201a-6672-416d-be6b-202dafbeccab",
+   "name": "Agent 13, Sharon Carter"
+  },
+  {
+   "object": "card",
+   "oracle_id": "f33217cc-175f-45e8-bc69-801f41cb4495",
+   "name": "Agent Bishop, Man in Black"
+  },
+  {
+   "object": "card",
+   "oracle_id": "aedcde3b-3ed5-443c-a81c-03d785153e55",
+   "name": "Agent Frank Horrigan"
+  },
+  {
+   "object": "card",
+   "oracle_id": "a2d90efe-80f2-4069-b135-a8bd00ccd2b0",
+   "name": "Agent Maria Hill"
+  },
+  {
+   "object": "card",
+   "oracle_id": "325032d5-c452-4454-8976-82f86fee5ab8",
+   "name": "Agent of the Iron Throne"
+  },
+  {
+   "object": "card",
+   "oracle_id": "b2142d8b-ea53-443e-bd60-9e70d9da9bd7",
+   "name": "Agent of the Shadow Thieves"
+  },
+  {
+   "object": "card",
+   "oracle_id": "dae20bcd-dc24-4f9d-9400-a6f013b49f14",
+   "name": "Agent Phil Coulson"
+  },
+  {
+   "object": "card",
+   "oracle_id": "14c356aa-178d-4c14-a88e-fbe92ee6d89f",
+   "name": "Agent Venom"
+  },
+  {
+   "object": "card",
+   "oracle_id": "3d19823a-dbb8-4384-81f4-5c6818b7f46d",
+   "name": "Agrus Kos, Eternal Soldier"
+  },
+  {
+   "object": "card",
+   "oracle_id": "11b7ee78-fca6-4b34-93e4-e60492583d50",
+   "name": "Agrus Kos, Spirit of Justice"
+  },
+  {
+   "object": "card",
+   "oracle_id": "e758aecd-6ce1-42f6-9716-32871e3bfa41",
+   "name": "Agrus Kos, Wojek Veteran"
+  },
+  {
+   "object": "card",
+   "oracle_id": "eae3e762-dacd-4bd2-923c-3abb5ceb729a",
+   "name": "Aisha of Sparks and Smoke"
+  },
+  {
+   "object": "card",
+   "oracle_id": "2588f348-d7a3-46c8-9ace-dca53ed5ef99",
+   "name": "Ajani, Nacatl Pariah // Ajani, Nacatl Avenger"
+  },
+  {
+   "object": "card",
+   "oracle_id": "53bfe54e-9b97-4113-97d9-3c5dbc85e7cf",
+   "name": "Akal Pakal, First Among Equals"
+  },
+  {
+   "object": "card",
+   "oracle_id": "0679dcef-e1c3-4739-a769-18a4ffdcfde7",
+   "name": "Akawalli, the Seething Tower"
+  },
+  {
+   "object": "card",
+   "oracle_id": "2a20530b-d1d6-4dac-8d08-f583bea55e6e",
+   "name": "Akim, the Soaring Wind"
+  },
+  {
+   "object": "card",
+   "oracle_id": "c03ae426-2536-4c20-a73a-a24e816f76b0",
+   "name": "Akiri, Fearless Voyager"
+  },
+  {
+   "object": "card",
+   "oracle_id": "3e0a0276-b640-41c7-95bd-ba3067f5c911",
+   "name": "Akiri, Line-Slinger"
+  },
+  {
+   "object": "card",
+   "oracle_id": "2b80faaf-92fd-4fa0-a3f6-8bb263e7ff1d",
+   "name": "Akroma, Angel of Fury"
+  },
+  {
+   "object": "card",
+   "oracle_id": "107f204c-9fd3-490d-8887-be63d14fc6a4",
+   "name": "Akroma, Angel of Wrath"
+  },
+  {
+   "object": "card",
+   "oracle_id": "b9be5ce9-08bb-4361-940c-9031e429ba86",
+   "name": "Akroma, Vision of Ixidor"
+  },
+  {
+   "object": "card",
+   "oracle_id": "d6b56d6d-e2f6-47f5-a9d1-cd0e17f94a0d",
+   "name": "Akul the Unrepentant"
+  },
+  {
+   "object": "card",
+   "oracle_id": "29169659-309f-4e1c-86ba-1d36420ed41e",
+   "name": "Akuta, Born of Ash"
+  },
+  {
+   "object": "card",
+   "oracle_id": "97bb1589-2941-4a75-a5f6-916871e51e9e",
+   "name": "Alandra, Sky Dreamer"
+  },
+  {
+   "object": "card",
+   "oracle_id": "63d50d5e-56de-44c4-b906-b2a21a56e3f3",
+   "name": "Alania, Divergent Storm"
+  },
+  {
+   "object": "card",
+   "oracle_id": "1e048c15-50d6-4313-880a-e04348952a51",
+   "name": "Alaundo the Seer"
+  },
+  {
+   "object": "card",
+   "oracle_id": "eac8af5d-3deb-409b-8519-e9a8c3bbd856",
+   "name": "Albiorix, Goose Tyrant // Wild Goose Chase"
+  },
+  {
+   "object": "card",
+   "oracle_id": "936ae5dc-9838-47f3-ba1f-66523a7f5b76",
+   "name": "Alela, Artful Provocateur"
+  },
+  {
+   "object": "card",
+   "oracle_id": "1cae5752-b4af-4a8f-8c8c-2493e163083b",
+   "name": "Alela, Cunning Conqueror"
+  },
+  {
+   "object": "card",
+   "oracle_id": "ca349ba9-b5ea-48e6-a617-c9b7f2708853",
+   "name": "Alena, Kessig Trapper"
+  },
+  {
+   "object": "card",
+   "oracle_id": "17ce2c17-b69b-4ebf-9c3c-c64e771af101",
+   "name": "Alesha, Who Laughs at Fate"
+  },
+  {
+   "object": "card",
+   "oracle_id": "6969a7e2-6866-4001-a139-24b3be13deae",
+   "name": "Alesha, Who Smiles at Death"
+  },
+  {
+   "object": "card",
+   "oracle_id": "60875e8e-fc71-4eb3-8c2d-70f2fd1f11ae",
+   "name": "Alexander Clamilton"
+  },
+  {
+   "object": "card",
+   "oracle_id": "81c6c4f0-81ad-463c-a42b-60a73e6d70f3",
+   "name": "Alexios, Deimos of Kosmos"
+  },
+  {
+   "object": "card",
+   "oracle_id": "3f60de36-ed63-4d08-a012-fc16e91da46d",
+   "name": "Alexi, Zephyr Mage"
+  },
+  {
+   "object": "card",
+   "oracle_id": "f3031397-c2d5-40c6-8eca-88faed00a5ea",
+   "name": "Alex Wilder, Runaway"
+  },
+  {
+   "object": "card",
+   "oracle_id": "c2531360-61f8-4edc-886b-408811a0639d",
+   "name": "Alhammarret, High Arbiter"
+  },
+  {
+   "object": "card",
+   "oracle_id": "c8deef08-fcf2-41e1-8aeb-aa4e0af147ca",
+   "name": "Alharu, Solemn Ritualist"
+  },
+  {
+   "object": "card",
+   "oracle_id": "e5e8e116-10fe-48b0-b3d8-6edb39bd5f90",
+   "name": "Alibou, Ancient Witness"
+  },
+  {
+   "object": "card",
+   "oracle_id": "223504ba-174a-46f2-a4a2-5d663a82dfd3",
+   "name": "Alicia Masters, Skilled Sculptor"
+  },
+  {
+   "object": "card",
+   "oracle_id": "7dbf9e96-e61f-43db-8767-63a351cf4ef8",
+   "name": "Alirios, Enraptured"
+  },
+  {
+   "object": "card",
+   "oracle_id": "4bd1d079-314e-4fb5-9b43-c9c83e5528bc",
+   "name": "Alisaie Leveilleur"
+  },
+  {
+   "object": "card",
+   "oracle_id": "2fe8d739-dee5-4220-8102-6fbae7d4fc19",
+   "name": "Alistair, the Brigadier"
+  },
+  {
+   "object": "card",
+   "oracle_id": "a26432ff-ae60-454d-a6de-fec3feafa669",
+   "name": "Alora, Merry Thief"
+  },
+  {
+   "object": "card",
+   "oracle_id": "85e2a2e7-2627-4634-a003-443268e000b3",
+   "name": "Alora, Rogue Companion"
+  },
+  {
+   "object": "card",
+   "oracle_id": "f0554a8f-32de-4069-9f47-5e06ceb3f09d",
+   "name": "Aloy, Savior of Meridian"
+  },
+  {
+   "object": "card",
+   "oracle_id": "e4be4071-7910-460f-90f3-6c4d8cc9db65",
+   "name": "Alpharael, Dreaming Acolyte"
+  },
+  {
+   "object": "card",
+   "oracle_id": "ed43f1f9-ef96-47bc-8a54-e59154319f9d",
+   "name": "Alpharael, Stonechosen"
+  },
+  {
+   "object": "card",
+   "oracle_id": "d16783a4-9980-451b-9af0-33866980bc8d",
+   "name": "Alphinaud Leveilleur"
+  },
+  {
+   "object": "card",
+   "oracle_id": "dd79a994-7dad-49d4-8d8f-62dbedde4a38",
+   "name": "Alquist Proft, Master Sleuth"
+  },
+  {
+   "object": "card",
+   "oracle_id": "0a69c3dd-52a3-4ef6-b53f-b0780e0dc5f8",
+   "name": "Alrund, God of the Cosmos // Hakka, Whispering Raven"
+  },
+  {
+   "object": "card",
+   "oracle_id": "43dc4b0c-e437-4abc-a3fb-48bd3098de88",
+   "name": "Alta\u00efr Ibn-La'Ahad"
+  },
+  {
+   "object": "card",
+   "oracle_id": "6591f243-f94c-4a83-bb16-1fb838d9eb14",
+   "name": "Altanak, the Thrice-Called"
+  },
+  {
+   "object": "card",
+   "oracle_id": "85eefda9-4aab-467d-a08c-be026cb8ff42",
+   "name": "Amalia Benavides Aguirre"
+  },
+  {
+   "object": "card",
+   "oracle_id": "322d2407-fa9f-48d0-bdf0-88f6d24cf865",
+   "name": "Amarant Coral"
+  },
+  {
+   "object": "card",
+   "oracle_id": "8cccc8d0-bdd8-4853-8330-6f6a57695d11",
+   "name": "Amareth, the Lustrous"
+  },
+  {
+   "object": "card",
+   "oracle_id": "7a6c4216-7aff-41d4-8d79-bd1ac0b263ae",
+   "name": "Amazing Spider-Girl"
+  },
+  {
+   "object": "card",
+   "oracle_id": "183a9488-e21f-448b-8b69-e53b56fa0a56",
+   "name": "Ambassador Blorpityblorpboop"
+  },
+  {
+   "object": "card",
+   "oracle_id": "2df8f253-1d3c-4b1f-8549-93fb90623474",
+   "name": "Ambassador Laquatus"
+  },
+  {
+   "object": "card",
+   "oracle_id": "eee56bb2-7b10-48a8-abeb-648fe3d0db8c",
+   "name": "Ambergris, Citadel Agent"
+  },
+  {
+   "object": "card",
+   "oracle_id": "d1435f7b-a694-4c7f-a0f2-34c4c646e04b",
+   "name": "Amber Gristle O'Maul"
+  },
+  {
+   "object": "card",
+   "oracle_id": "2bcc9f11-5b12-433e-9680-0f4b18aa521c",
+   "name": "Ambrosia Whiteheart"
+  },
+  {
+   "object": "card",
+   "oracle_id": "3a30089d-cd2d-49be-9b06-7a2454117692",
+   "name": "Aminatou, the Fateshifter"
+  },
+  {
+   "object": "card",
+   "oracle_id": "bf45f5ee-4d5f-4920-b612-b5492c2f035d",
+   "name": "Aminatou, Veil Piercer"
+  },
+  {
+   "object": "card",
+   "oracle_id": "aa7d3e99-fc14-4f62-bf00-c0428c11e4f2",
+   "name": "Amy Pond"
+  },
+  {
+   "object": "card",
+   "oracle_id": "b2d597b4-f9ba-44b0-a947-0c2ecda2d308",
+   "name": "Amy Rose"
+  },
+  {
+   "object": "card",
+   "oracle_id": "6777863c-e52c-4a7c-b8d2-a16b1438b3d2",
+   "name": "Amzu, Swarm's Hunger"
+  },
+  {
+   "object": "card",
+   "oracle_id": "f7fa6ac0-70db-4586-b881-5a19db644dfb",
+   "name": "Anafenza, Kin-Tree Spirit"
+  },
+  {
+   "object": "card",
+   "oracle_id": "ebfafabc-5255-4024-be59-7403bdb16ee4",
+   "name": "Anafenza, the Foremost"
+  },
+  {
+   "object": "card",
+   "oracle_id": "659bc01c-fa60-4d00-bdad-5bca1d2a978f",
+   "name": "Anafenza, Unyielding Lineage"
+  },
+  {
+   "object": "card",
+   "oracle_id": "a59ff932-f758-476e-ba31-0623bd748231",
+   "name": "Anara, Wolvid Familiar"
+  },
+  {
+   "object": "card",
+   "oracle_id": "9c4219db-1a7a-4d61-bb8b-7998cfed1faf",
+   "name": "Anax and Cymede"
+  },
+  {
+   "object": "card",
+   "oracle_id": "e23cd06d-1360-4e5d-aecc-adf902bede69",
+   "name": "Anax, Hardened in the Forge"
+  },
+  {
+   "object": "card",
+   "oracle_id": "0a73289f-0f0b-4316-be21-8edcbb08bd7c",
+   "name": "Anep, Vizier of Hazoret"
+  },
+  {
+   "object": "card",
+   "oracle_id": "4fed8066-4597-4ebb-ac88-6622cf007d81",
+   "name": "Angelic Harold"
+  },
+  {
+   "object": "card",
+   "oracle_id": "d5e6ac6b-5786-4d98-8037-0867e365fc93",
+   "name": "Angus Mackenzie"
+  },
+  {
+   "object": "card",
+   "oracle_id": "d3c3f293-6790-4dce-900a-8af0464c2572",
+   "name": "Anhelo, the Painter"
+  },
+  {
+   "object": "card",
+   "oracle_id": "991fd651-0cba-41ee-855a-d01a1a7c8f60",
+   "name": "Anikthea, Hand of Erebos"
+  },
+  {
+   "object": "card",
+   "oracle_id": "725880b2-1675-414f-b61b-cf6533797dbf",
+   "name": "Animar, Soul of Elements"
+  },
+  {
+   "object": "card",
+   "oracle_id": "05551d91-50c6-46d1-86a4-cd3d177d0923",
+   "name": "Anim Pakal, Thousandth Moon"
+  },
+  {
+   "object": "card",
+   "oracle_id": "522453f5-15d0-43b3-9247-c846aee0eaa6",
+   "name": "Anina, Natural Parallelist"
+  },
+  {
+   "object": "card",
+   "oracle_id": "4dab6a96-4376-4aea-983d-406167993214",
+   "name": "Anje Falkenrath"
+  },
+  {
+   "object": "card",
+   "oracle_id": "1829f1dc-1fa9-4361-b318-d4dee280e6fd",
+   "name": "Anje, Maid of Dishonor"
+  },
+  {
+   "object": "card",
+   "oracle_id": "858067f9-eb1f-4569-9831-30441cba5f90",
+   "name": "Annie Flash, the Veteran"
+  },
+  {
+   "object": "card",
+   "oracle_id": "0c201f79-9eca-48c8-88ba-a20fa6918a07",
+   "name": "Anowon, the Ruin Sage"
+  },
+  {
+   "object": "card",
+   "oracle_id": "e7e69583-8326-417e-8a9a-6b917c8ba4b6",
+   "name": "Anowon, the Ruin Thief"
+  },
+  {
+   "object": "card",
+   "oracle_id": "32476743-c9d4-49ca-bec2-0669c215841b",
+   "name": "Anrakyr the Traveller"
+  },
+  {
+   "object": "card",
+   "oracle_id": "141f952b-9e9f-48c5-9c88-b1504dfa73bc",
+   "name": "Anthousa, Setessan Hero"
+  },
+  {
+   "object": "card",
+   "oracle_id": "3c7bafe9-80cd-48d0-bcae-e7910c9fb83b",
+   "name": "Anti-Venom, Horrifying Healer"
+  },
+  {
+   "object": "card",
+   "oracle_id": "b0ed9fbe-324d-467a-a326-c6f85a4c688a",
+   "name": "Ant-Man, Colony Commander"
+  },
+  {
+   "object": "card",
+   "oracle_id": "f334087a-deda-4e9e-ab58-68f7e226d7ce",
+   "name": "Ant-Man, Elusive Avenger"
+  },
+  {
+   "object": "card",
+   "oracle_id": "c51c429d-d8d7-40d6-9760-72c26acaed42",
+   "name": "Ant-Man, Reformed Rogue"
+  },
+  {
+   "object": "card",
+   "oracle_id": "1e4cf4a4-50a4-4856-bf7e-20899e8affd1",
+   "name": "Ant-Man, Scott Lang"
+  },
+  {
+   "object": "card",
+   "oracle_id": "0665daf5-e12a-4b59-81fc-63fec2807571",
+   "name": "Anya, Merciless Angel"
+  },
+  {
+   "object": "card",
+   "oracle_id": "4adcd967-9ff7-4940-b8b9-0c4215bbcb75",
+   "name": "Anzrag, the Quake-Mole"
+  },
+  {
+   "object": "card",
+   "oracle_id": "697ac261-263b-4879-bf45-6d10d23312ae",
+   "name": "Ao, the Dawn Sky"
+  },
+  {
+   "object": "card",
+   "oracle_id": "191e003f-1a78-4d85-9c70-2ae132a5f9cc",
+   "name": "Aphelia, Viper Whisperer"
+  },
+  {
+   "object": "card",
+   "oracle_id": "820dab0f-3b6b-437c-ba4b-2311437709c3",
+   "name": "Aphemia, the Cacophony"
+  },
+  {
+   "object": "card",
+   "oracle_id": "7bf8bb41-6f46-492c-b6cf-5cfb29f973a4",
+   "name": "Apothecary White"
+  },
+  {
+   "object": "card",
+   "oracle_id": "215215b8-6ddc-4e94-8640-6d324ff65f9c",
+   "name": "Appa, Aang's Companion"
+  },
+  {
+   "object": "card",
+   "oracle_id": "c6e28cf0-81c7-4f52-a29b-988cc6fd31ee",
+   "name": "Appa, Loyal Sky Bison"
+  },
+  {
+   "object": "card",
+   "oracle_id": "03c141ca-11e4-4927-a6bd-980ee1203c73",
+   "name": "Appa, Steadfast Guardian"
+  },
+  {
+   "object": "card",
+   "oracle_id": "72994a7a-7c0d-4f28-8cc0-28161d098d7f",
+   "name": "Appa, the Vigilant"
+  },
+  {
+   "object": "card",
+   "oracle_id": "c81f22a3-b93a-4ea4-b2ae-557c12e07288",
+   "name": "Applejack"
+  },
+  {
+   "object": "card",
+   "oracle_id": "d379a919-02cd-46fd-a6ce-b66a77745ae7",
+   "name": "April O'Neil, Hacktivist"
+  },
+  {
+   "object": "card",
+   "oracle_id": "020963ef-24c0-48cc-8776-bc257df684bc",
+   "name": "April O'Neil, Human Element"
+  },
+  {
+   "object": "card",
+   "oracle_id": "3f166376-2739-411c-8f42-96f2ef28ef86",
+   "name": "April O'Neil, Kunoichi Trainee"
+  },
+  {
+   "object": "card",
+   "oracle_id": "4900c157-8d9f-4f92-aaca-5246b6e2832e",
+   "name": "April O'Neil, Live on the Scene"
+  },
+  {
+   "object": "card",
+   "oracle_id": "1c371003-e4f0-4d7c-b021-273176772f97",
+   "name": "April, Reporter of the Weird"
+  },
+  {
+   "object": "card",
+   "oracle_id": "7c4bbb1b-29c4-4e06-aed0-b361293a585b",
+   "name": "Arabella, Abandoned Doll"
+  },
+  {
+   "object": "card",
+   "oracle_id": "28d500ea-720f-4332-891e-404fb03acb5c",
+   "name": "Arachne, Psionic Weaver"
+  },
+  {
+   "object": "card",
+   "oracle_id": "32620b26-10b9-47a7-bfa7-ca590ab5fa50",
+   "name": "Aradesh, the Founder"
+  },
+  {
+   "object": "card",
+   "oracle_id": "b8a3440a-03c5-444c-a1de-252524c3db82",
+   "name": "Aragorn and Arwen, Wed"
+  },
+  {
+   "object": "card",
+   "oracle_id": "1b841e8f-9484-4737-bd37-dfa11bd06883",
+   "name": "Aragorn, Company Leader"
+  },
+  {
+   "object": "card",
+   "oracle_id": "07326335-45dd-4ebd-8ae6-5191b6eb2928",
+   "name": "Aragorn, Hornburg Hero"
+  },
+  {
+   "object": "card",
+   "oracle_id": "be97c400-c690-426d-a39e-4082080a3823",
+   "name": "Aragorn, King of Gondor"
+  },
+  {
+   "object": "card",
+   "oracle_id": "3f31c423-d45c-4c3e-b7d4-ca125be0f92c",
+   "name": "Aragorn, the Uniter"
+  },
+  {
+   "object": "card",
+   "oracle_id": "66944a11-40a1-4f3a-9f83-52324e0edfef",
+   "name": "Arahbo, Roar of the World"
+  },
+  {
+   "object": "card",
+   "oracle_id": "dfec65a0-6fb6-463d-aa62-e84a427db217",
+   "name": "Arahbo, the First Fang"
+  },
+  {
+   "object": "card",
+   "oracle_id": "a16037f2-a0f6-465d-8d6e-cec34b4a6320",
+   "name": "Ara\u00f1a, Heart of the Spider"
+  },
+  {
+   "object": "card",
+   "oracle_id": "9277b680-a146-4d4f-9649-39cddafdb585",
+   "name": "Arashi, the Sky Asunder"
+  },
+  {
+   "object": "card",
+   "oracle_id": "695eea46-1535-48c5-bbb6-0b8379e77bfc",
+   "name": "Arasta of the Endless Web"
+  },
+  {
+   "object": "card",
+   "oracle_id": "1a62ba93-153c-4bed-9f6a-ff914df360c1",
+   "name": "Araumi of the Dead Tide"
+  },
+  {
+   "object": "card",
+   "oracle_id": "a383ef16-1af8-4b3a-956c-c10a93768617",
+   "name": "Arbaaz Mir"
+  },
+  {
+   "object": "card",
+   "oracle_id": "e001d7e6-71c9-42fa-9d5c-9455da66e4ec",
+   "name": "Arcade Gannon"
+  },
+  {
+   "object": "card",
+   "oracle_id": "8ead94c5-8447-4f20-87ec-efdccde689fc",
+   "name": "Arcades Sabboth"
+  },
+  {
+   "object": "card",
+   "oracle_id": "e7fc5ad6-f2f0-4b06-a61b-05022db9d93b",
+   "name": "Arcades, the Strategist"
+  },
+  {
+   "object": "card",
+   "oracle_id": "8a7183cc-161c-444d-a889-a17519c8061b",
+   "name": "Arcanis the Omnipotent"
+  }
+ ]
+}

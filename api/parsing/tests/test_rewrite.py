@@ -67,6 +67,7 @@ EQUIVALENCES = [
     ("is:bikeland", "otag:cycle-dual-cycling-land"),
     ("is:surveilland", "otag:cycle-dual-surveil-land"),
     ("is:tricycleland", "otag:tricycle-land"),
+    ("is:trikeland", "otag:tricycle-land"),  # alias of tricycleland
     ("is:pathway", "otag:cycle-pathway"),
     # composes under negation and inside compounds
     ("-frame:old", "-(frame:1993 or frame:1997)"),

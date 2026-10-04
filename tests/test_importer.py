@@ -292,3 +292,21 @@ def test_check_reports_unreadable_database(tmp_path: Path) -> None:
     problems = check(tmp_path / "does_not_exist.sqlite")
     assert problems
     assert all(isinstance(p, str) for p in problems)
+
+
+@pytest.mark.parametrize(
+    ("name", "is_spell"),
+    [
+        ("Counterspell", True),
+        ("Command Tower", False),
+        ("Forest", False),
+        # Spell // Land modal DFCs are spells on Scryfall (is:spell matched Turntimber Symbiosis live, 2026-10-03).
+        ("Fell the Profane // Fell Mire", True),
+        # Creature // Land: the front face is a creature, so also a spell.
+        ("Witch Enchanter // Witch-Blessed Meadow", True),
+    ],
+)
+def test_is_spell_tag_is_front_face_not_a_land(conn: sqlite3.Connection, name: str, *, is_spell: bool) -> None:
+    """`is:spell` is answered at import (rewrite.py stays Sylvan's): a card whose front face isn't a land."""
+    tags = json.loads(card_row(conn, name)["card_is_tags"])
+    assert ("spell" in tags) is is_spell

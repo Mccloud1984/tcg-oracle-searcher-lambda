@@ -43,6 +43,7 @@ from api.parsing.nodes import (
     StringValueNode,
     TrueNode,
 )
+from oracle_searcher.is_tag_rules import KNOWN_IS_TAGS
 from oracle_searcher.schema import COLOR_BITS
 
 if TYPE_CHECKING:
@@ -368,6 +369,13 @@ def _compile_array_membership(attr: str, operator: str, rhs: QueryNode, params: 
         msg = f"{attr!r} value {rhs.value!r} did not normalize to exactly one entry"
         raise Unsupported(msg)
     (value,) = comparison.keys()
+    # is:/has: tags not in rewrite.py's _DERIVED_EXPANSIONS reach here as a literal card_is_tags
+    # leaf (oracle_searcher/is_tag_rules.py's docstring). Anything card_is_tags never populates
+    # for any card would otherwise just compile to "matches nothing" -- an unflagged wrong
+    # answer, not the Unsupported docs/PLAN-2026-10-03.md's search() contract promises instead.
+    if attr == "card_is_tags" and value not in KNOWN_IS_TAGS:
+        msg = f"is:/has: tag {value!r} is not answerable from this schema (see docs/is-tags.md)"
+        raise Unsupported(msg)
     return _array_membership_sql(attr, operator, value, params)
 
 

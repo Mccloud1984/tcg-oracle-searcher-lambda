@@ -1,0 +1,287 @@
+{
+ "object": "list",
+ "total_cards": 3731,
+ "has_more": false,
+ "data": [
+  {
+   "object": "card",
+   "oracle_id": "a9946ea0-bf0e-4c9c-a3c6-21337a5029ab",
+   "name": "Zaxara, the Exemplary"
+  },
+  {
+   "object": "card",
+   "oracle_id": "514179c0-a50b-4565-8e71-9dad256edd85",
+   "name": "Zedruu the Greathearted"
+  },
+  {
+   "object": "card",
+   "oracle_id": "04260930-ff38-4b35-9ec4-e89196a4f2c7",
+   "name": "Zegana, Utopian Speaker"
+  },
+  {
+   "object": "card",
+   "oracle_id": "f207ce73-e4cd-4dfc-b3b9-5704f5148959",
+   "name": "Zell Dincht"
+  },
+  {
+   "object": "card",
+   "oracle_id": "4dde484a-8d5b-4eb6-ab4a-e30cc370431c",
+   "name": "Zellix, Sanity Flayer"
+  },
+  {
+   "object": "card",
+   "oracle_id": "8f52fc65-a914-421a-9426-21eb520d55d5",
+   "name": "Zenos yae Galvus // Shinryu, Transcendent Rival"
+  },
+  {
+   "object": "card",
+   "oracle_id": "fa1dc21d-f7f6-425f-a4ae-2b0f143091e3",
+   "name": "Zeriam, Golden Wind"
+  },
+  {
+   "object": "card",
+   "oracle_id": "7da0e5de-3e4c-420a-8685-991206100b9d",
+   "name": "Zetalpa, Primal Dawn"
+  },
+  {
+   "object": "card",
+   "oracle_id": "ac136d46-32b7-4222-a840-b8be011c1872",
+   "name": "Zethi, Arcane Blademaster"
+  },
+  {
+   "object": "card",
+   "oracle_id": "0c85a577-db82-4a36-bc42-49644eba1cf2",
+   "name": "Zevlor, Elturel Exile"
+  },
+  {
+   "object": "card",
+   "oracle_id": "f3f815b8-75c6-40e0-9716-872f0f5c9d46",
+   "name": "Zhang Fei, Fierce Warrior"
+  },
+  {
+   "object": "card",
+   "oracle_id": "fe35b809-7439-4bdc-bce2-42262095064f",
+   "name": "Zhang He, Wei General"
+  },
+  {
+   "object": "card",
+   "oracle_id": "244541f6-cbfc-4e89-9156-64e412f745a7",
+   "name": "Zhang Liao, Hero of Hefei"
+  },
+  {
+   "object": "card",
+   "oracle_id": "d6b0198a-c1f2-4142-b5e2-8205adf14d0a",
+   "name": "Zhao, Ruthless Admiral"
+  },
+  {
+   "object": "card",
+   "oracle_id": "94c64d41-d756-42b6-b0e7-0a351d64a68c",
+   "name": "Zhao, the Moon Slayer"
+  },
+  {
+   "object": "card",
+   "oracle_id": "92ce3e30-dde3-43bb-a3d6-ccd91ff18bc3",
+   "name": "Zhao, the Seething Flame"
+  },
+  {
+   "object": "card",
+   "oracle_id": "22aa8e7f-b30d-49e2-b99e-9232e1a3bcf3",
+   "name": "Zhao Zilong, Tiger General"
+  },
+  {
+   "object": "card",
+   "oracle_id": "0b4742b7-e769-4354-beaf-6b4d18768ec1",
+   "name": "Zhou Yu, Chief Commander"
+  },
+  {
+   "object": "card",
+   "oracle_id": "ce995d3f-be7c-4d2a-8ec4-c7f7f831f0bf",
+   "name": "Zhuge Jin, Wu Strategist"
+  },
+  {
+   "object": "card",
+   "oracle_id": "ec726c54-987b-48ed-8ffa-ec73a5e35333",
+   "name": "Zhulodok, Void Gorger"
+  },
+  {
+   "object": "card",
+   "oracle_id": "d46c3fb6-f1c7-4a96-ae42-5bce17fc7c1d",
+   "name": "Ziatora, the Incinerator"
+  },
+  {
+   "object": "card",
+   "oracle_id": "f267fb54-1881-464c-81af-9e03c3f3b41d",
+   "name": "Zidane, Tantalus Thief"
+  },
+  {
+   "object": "card",
+   "oracle_id": "2dba8d8d-891e-482e-8014-879f701d0619",
+   "name": "Zilortha, Strength Incarnate"
+  },
+  {
+   "object": "card",
+   "oracle_id": "6c044dd1-8938-4d62-a7b2-e2298de08f70",
+   "name": "Zimone, All-Questioning"
+  },
+  {
+   "object": "card",
+   "oracle_id": "5bc66b18-22ac-4138-b527-fa711116e298",
+   "name": "Zimone and Dina"
+  },
+  {
+   "object": "card",
+   "oracle_id": "977f9390-e01d-4e9d-8e9c-e543b1266972",
+   "name": "Zimone, Infinite Analyst"
+  },
+  {
+   "object": "card",
+   "oracle_id": "75bf0f27-9df1-4ab4-97a8-94bb3223bdf9",
+   "name": "Zimone, Mystery Unraveler"
+  },
+  {
+   "object": "card",
+   "oracle_id": "9dd674a7-becf-4106-b53f-bca88426d92d",
+   "name": "Zimone, Paradox Sculptor"
+  },
+  {
+   "object": "card",
+   "oracle_id": "ee2ef1e0-6803-4eb5-8664-605438c67505",
+   "name": "Zimone, Quandrix Prodigy"
+  },
+  {
+   "object": "card",
+   "oracle_id": "d8c16a3a-dd9d-410c-a5d5-06339a89970f",
+   "name": "Zinnia, Valley's Voice"
+  },
+  {
+   "object": "card",
+   "oracle_id": "7b515c56-7b1e-42a8-82b0-1b30201fb162",
+   "name": "Zirda, the Dawnwaker"
+  },
+  {
+   "object": "card",
+   "oracle_id": "3aeb28ac-8ed2-4a90-a631-d84361ac6acc",
+   "name": "Zirilan of the Claw"
+  },
+  {
+   "object": "card",
+   "oracle_id": "502849a6-8e65-40f3-b348-a41c4f939768",
+   "name": "Zndrsplt, Eye of Wisdom"
+  },
+  {
+   "object": "card",
+   "oracle_id": "f1190fb9-72a2-48f8-bc2d-61240f1e9119",
+   "name": "Zodiark, Umbral God"
+  },
+  {
+   "object": "card",
+   "oracle_id": "d944d33d-0a95-4d0d-96ce-49d02500227d",
+   "name": "Zog, Triceraton Castaway"
+  },
+  {
+   "object": "card",
+   "oracle_id": "b168e4e6-f572-4d9f-b98f-95b2611354cb",
+   "name": "Zopandrel, Hunger Dominus"
+  },
+  {
+   "object": "card",
+   "oracle_id": "5a775f50-20f8-4a8f-868c-8907305bfad6",
+   "name": "Zoraline, Cosmos Caller"
+  },
+  {
+   "object": "card",
+   "oracle_id": "e90f298f-c54b-4fe8-82db-5b9153a57712",
+   "name": "Zoyowa Lava-Tongue"
+  },
+  {
+   "object": "card",
+   "oracle_id": "0e412b68-9179-4094-960a-95692428855b",
+   "name": "Zo-Zu the Punisher"
+  },
+  {
+   "object": "card",
+   "oracle_id": "5a43b164-61a4-4dcb-9397-45356ad4260e",
+   "name": "Zuberi, Golden Feather"
+  },
+  {
+   "object": "card",
+   "oracle_id": "d445a584-98e7-4501-bb20-e76c9cafa757",
+   "name": "Zuko, Avatar Hunter"
+  },
+  {
+   "object": "card",
+   "oracle_id": "b5fd82b9-77de-4358-9ce7-915cc809a889",
+   "name": "Zuko, Conflicted"
+  },
+  {
+   "object": "card",
+   "oracle_id": "3231ce2e-d4f8-44fc-872d-aeafa59aed4b",
+   "name": "Zuko, Exiled Prince"
+  },
+  {
+   "object": "card",
+   "oracle_id": "33db6dc8-2c88-4a7f-8d4d-3bc9fb6544b2",
+   "name": "Zuko, Firebending Master"
+  },
+  {
+   "object": "card",
+   "oracle_id": "6e737c52-cbe0-493f-ae46-7bf068e04882",
+   "name": "Zuko, Seeking Honor"
+  },
+  {
+   "object": "card",
+   "oracle_id": "a7c6c9b3-91f2-4ecf-b2b0-b0edd96974d9",
+   "name": "Zul Ashur, Lich Lord"
+  },
+  {
+   "object": "card",
+   "oracle_id": "ae8773a3-05f2-4074-9a53-033b0c127235",
+   "name": "Zuo Ci, the Mocking Sage"
+  },
+  {
+   "object": "card",
+   "oracle_id": "cfc5dc9c-6f26-460b-a624-3681b8584eb3",
+   "name": "Zur, Eternal Schemer"
+  },
+  {
+   "object": "card",
+   "oracle_id": "941c9acd-2773-456a-88d5-0537735f93c6",
+   "name": "Zurgo and Ojutai"
+  },
+  {
+   "object": "card",
+   "oracle_id": "46808926-d95b-4313-89d1-6bdfe13fcb77",
+   "name": "Zurgo Bellstriker"
+  },
+  {
+   "object": "card",
+   "oracle_id": "6c48d888-9f5d-43f4-adbd-61dbdba09260",
+   "name": "Zurgo Helmsmasher"
+  },
+  {
+   "object": "card",
+   "oracle_id": "0f93d88c-9d2e-416d-a10b-99483360b1fb",
+   "name": "Zurgo Stormrender"
+  },
+  {
+   "object": "card",
+   "oracle_id": "393d0bf8-5f2e-4eaa-91a1-9132429a7371",
+   "name": "Zurgo, Thunder's Decree"
+  },
+  {
+   "object": "card",
+   "oracle_id": "aa792980-0811-4c08-8343-00fba0c5cf5e",
+   "name": "Zuri, Warrior of Wakanda"
+  },
+  {
+   "object": "card",
+   "oracle_id": "d7950018-d744-48a8-81aa-0d8384703f48",
+   "name": "Zur the Enchanter"
+  },
+  {
+   "object": "card",
+   "oracle_id": "a7da9ec5-f82f-4a6d-9737-06a1556e2dd6",
+   "name": "Zurzoth, Chaos Rider"
+  }
+ ]
+}
