@@ -100,3 +100,11 @@ def test_scryfall_preview_means_a_card_page_not_a_set_page(full: sqlite3.Connect
     """Scryfall's is:scryfallpreview is 6 cards (preview.source_uri is a /card/ page); the 321 slz printings link a set page."""
     assert "scryfallpreview" in _tags(full, "Kraul Stinger")
     assert "scryfallpreview" not in _tags(full, "Lightning Bolt")
+
+
+def test_alchemy_card_legal_nowhere_is_hidden(full: sqlite3.Connection) -> None:
+    """Skanos, Green Dragon Vassal (hbg, Alchemy: Baldur's Gate) is legal in no format.
+
+    Parity 2026-10-03: t:dragon was 449 vs Scryfall's 444 and t:elf 713 vs 698; the extras were exactly the hbg cards.
+    """
+    assert card_row(full, "Skanos, Green Dragon Vassal")["is_extra"] == 1

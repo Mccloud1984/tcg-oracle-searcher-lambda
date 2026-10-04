@@ -440,12 +440,14 @@ def _is_extra(card: dict[str, Any]) -> bool:
     Parity 2026-10-03: hiding every funny card made `legal:commander` 31942 vs Scryfall's 32116
     (the missing 174 were exactly the funny cards legal in commander, e.g. Atomwheel Acrobats,
     Celebr-8000), and hiding the Un-set ones too made `t:creature cmc<=2` 5000 vs 5071. Cards
-    with `content_warning` (7 in the file) are hidden as well.
+    with `content_warning` (7 in the file) are hidden as well, and so are Alchemy cards legal nowhere (the 104 hbg cards: t:elf was 713 vs 698, t:dragon 449 vs 444).
     """
     hidden_funny = _is_playtest_or_funny(card) and not _legal_somewhere(card) and card.get("set") not in _VISIBLE_FUNNY_SETS
+    hidden_alchemy = card.get("set_type") == "alchemy" and not _legal_somewhere(card)
     return bool(
         card.get("content_warning")
         or hidden_funny
+        or hidden_alchemy
         or card.get("layout") in _HIDDEN_LAYOUTS
         or card.get("set_type") == "memorabilia"
     )
