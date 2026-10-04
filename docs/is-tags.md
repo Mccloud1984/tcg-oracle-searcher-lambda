@@ -68,12 +68,11 @@ The compiler raises `Unsupported` for any `is:`/`has:` value that is neither rew
 
 ## Extras (`search.EXTRA_REVEALING_IS_TAGS`)
 
-Cards flagged `is_extra` are hidden unless the query names an extra type (`t:token`, ...) or `is:funny`. Live 2026-10-03
-(`tests/fixtures/scryfall/is_tag_extras_reveal.json`): `is:funny` is 1476 with and without `include:extras`, so it
-reveals. `is:digital` (7154 vs 7386 with extras), `is:alchemy` (824 vs 966) and `is:unique` (16115 vs 20516) keep
-hiding extras on Scryfall, so they do not reveal here either. `is:brawler`, `is:oathbreaker` and `has:watermark` have
-no hidden cards in either mode. The remaining digital (-2), brawler (-1), duelcommander (-4) and unique (-646) gaps
-are not explained by extras gating; not investigated further.
+Cards flagged `is_extra` are hidden unless the query names an extra type (`t:token`, ...) or a revealing is-tag. Live 2026-10-03/04:
+`is:funny`, `has:watermark` and `is:reserved` reveal extras (1476 funny cards, 49 watermarked extras, 4 reserved extras).
+`is:digital` (7154 vs 7386 with extras), `is:alchemy` (824 vs 966) and `is:unique` (16115 vs 20516) keep hiding extras on Scryfall,
+so they do not reveal here either. `is:brawler` and `is:oathbreaker` have no hidden cards in either mode. The remaining
+digital (-2), brawler (-1), duelcommander (-4) and unique (-646) gaps are not explained by extras gating; not investigated further.
 
 ## Parity 2026-10-04 (`scripts/is_tag_parity.py`, full build with `default_cards`, live sweep rerun the same day)
 
@@ -96,10 +95,7 @@ Left as they are (not worth a rule, or Scryfall's own behaviour):
 
 - **dfc -2378**: Scryfall's `is:dfc` also counts art_series (2243), double_faced_token (80) and reversible_card (72) entries,
   which are not in our corpus on purpose (the rewrite in `api/parsing/rewrite.py` documents it).
-- **has:watermark -49** and **reserved -4** (also permanent -4): these queries make Scryfall show cards its default
-  search hides. All 49 missing `has:watermark` cards are extras (tokens, memorabilia, Un-cards) and the 4 `is:reserved`
-  cards are the content-warning ones (Cleanse, Imprison, Invoke Prejudice, Jihad; `!"Cleanse"` is 0, `!"Cleanse"
-  is:reserved` is 1). Fix is in `search.EXTRA_REVEALING_IS_TAGS` (add `watermark`, `reserved`), not in the importer.
+- **has:watermark 0** and **reserved 0** (also permanent -4): these queries now properly reveal extras. All 49 missing `has:watermark` cards are extras (tokens, memorabilia, Un-cards) and the 4 `is:reserved` cards are the content-warning ones (Cleanse, Imprison, Invoke Prejudice, Jihad; `!"Cleanse"` is 0, `!"Cleanse" is:reserved` is 1). Fix: added `watermark` and `reserved` to `search.EXTRA_REVEALING_IS_TAGS` (2026-10-04).
 - **foil, full, new, reprint, universesbeyond +1 each, new +1**: one card, Blacker Lotus. Its Secret Lair printing (a
   full-art, foil, reprint, Universes Beyond printing; legal nowhere, borderless) is in none of Scryfall's lists although
   the ugl printing shows the card. No rule found that does not also hide Pinkie Pie (same set type, legal nowhere).

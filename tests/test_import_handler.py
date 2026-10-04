@@ -78,7 +78,8 @@ def _latest(s3) -> str:
 
 
 def test_publishes_a_passing_build_and_moves_latest(s3, scryfall, monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setattr(import_handler, "check", lambda _path: [])  # the fixtures are far under a full build's card count
+    monkeypatch.setattr(import_handler, "check", lambda _path: [])
+    monkeypatch.setattr(import_handler, "check_printings", lambda *_args: [])  # the fixtures are far under a full build's card count
     result = import_handler.handler({}, None)
     assert result["key"] == NEW_KEY
     assert result["card_count"] == 92
@@ -88,6 +89,7 @@ def test_publishes_a_passing_build_and_moves_latest(s3, scryfall, monkeypatch: p
 
 def test_published_file_is_a_gzipped_working_database(s3, scryfall, monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
     monkeypatch.setattr(import_handler, "check", lambda _path: [])
+    monkeypatch.setattr(import_handler, "check_printings", lambda *_args: [])
     import_handler.handler({}, None)
     cards_store.download_and_gunzip(s3, BUCKET, NEW_KEY, tmp_path / "out.sqlite")
     (count,) = sqlite3.connect(tmp_path / "out.sqlite").execute("SELECT COUNT(*) FROM cards").fetchone()
@@ -97,6 +99,7 @@ def test_published_file_is_a_gzipped_working_database(s3, scryfall, monkeypatch:
 def test_publishes_the_printings_file_and_latest_names_both(s3, scryfall, monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
     """Printings are a second published file; `latest` names it next to the cards key (and still `key` for old readers)."""
     monkeypatch.setattr(import_handler, "check", lambda _path: [])
+    monkeypatch.setattr(import_handler, "check_printings", lambda *_args: [])
     result = import_handler.handler({}, None)
     assert result["printings_key"] == NEW_PRINTINGS_KEY
     assert cards_store.read_latest(s3, BUCKET) == {"key": NEW_KEY, "printings_key": NEW_PRINTINGS_KEY}
@@ -114,6 +117,7 @@ def test_old_latest_naming_only_cards_still_reads(s3) -> None:
 def test_published_build_includes_every_printing(s3, scryfall, monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
     """Sol Ring's representative printing is no promo; only the default_cards printings make is:promo true."""
     monkeypatch.setattr(import_handler, "check", lambda _path: [])
+    monkeypatch.setattr(import_handler, "check_printings", lambda *_args: [])
     import_handler.handler({}, None)
     cards_store.download_and_gunzip(s3, BUCKET, NEW_KEY, tmp_path / "out.sqlite")
     (tags,) = (
@@ -133,6 +137,7 @@ def test_failing_check_keeps_the_old_latest_and_uploads_nothing(s3, scryfall) ->
 
 def test_latest_moves_only_after_the_build_is_uploaded(s3, scryfall, monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(import_handler, "check", lambda _path: [])
+    monkeypatch.setattr(import_handler, "check_printings", lambda *_args: [])
     seen: list[str] = []
     real_write = cards_store.write_latest_key
 
@@ -193,6 +198,7 @@ def test_applies_the_stored_sweep_before_check(s3, scryfall, monkeypatch: pytest
         return []
 
     monkeypatch.setattr(import_handler, "check", check)
+    monkeypatch.setattr(import_handler, "check_printings", lambda *_args: [])
     import_handler.handler({}, None)
     assert "funny" in seen_by_check[0]
     assert "funny" in _published_tags_of(s3, tmp_path, FIRST_FIXTURE_ORACLE_ID)
@@ -200,6 +206,7 @@ def test_applies_the_stored_sweep_before_check(s3, scryfall, monkeypatch: pytest
 
 def test_a_missing_sweep_file_is_fine_and_logged(s3, scryfall, monkeypatch: pytest.MonkeyPatch, tmp_path: Path, caplog) -> None:
     monkeypatch.setattr(import_handler, "check", lambda _path: [])
+    monkeypatch.setattr(import_handler, "check_printings", lambda *_args: [])
     with caplog.at_level("INFO"):
         result = import_handler.handler({}, None)
     assert result["key"] == NEW_KEY

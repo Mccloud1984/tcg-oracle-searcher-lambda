@@ -102,6 +102,23 @@ def test_other_swept_tags_do_not_reveal_extras(tag: str) -> None:
     assert search(conn, f"is:{tag}").data == []
 
 
+@pytest.mark.parametrize("tag", ["watermark", "reserved"])
+def test_watermark_and_reserved_reveal_extras(tag: str) -> None:
+    """`has:watermark` and `is:reserved` reveal extras like `is:funny` does.
+
+    Live 2026-10-04: 49 missing watermark cards are all extras; 4 missing reserved cards are
+    content-warning extras (Cleanse, Imprison, Invoke Prejudice, Jihad).
+    """
+    conn = make_db()
+    insert_named_card(conn, LLANOWAR_ELVES)
+    # Create an extra card with watermark or reserved tag
+    insert_named_card(conn, FUNNY_PLAYTEST_CARD, is_extra=1, card_is_tags=json.dumps([tag]))
+    # The query (has: for watermark, is: for reserved) should reveal the extra
+    prefix = "has" if tag == "watermark" else "is"
+    names = {card["name"] for card in search(conn, f"{prefix}:{tag}").data}
+    assert names == {FUNNY_PLAYTEST_CARD}
+
+
 # ── ordering ──────────────────────────────────────────────────────────────────────────────────
 
 

@@ -59,11 +59,11 @@ _NULLS_LAST_ORDERS = frozenset({"edhrec", "usd"})
 # Shared with sqlite_compiler.EXTRA_TYPE_VALUES (same words, same reason: these are exactly the
 # type-line words the importer stores in card_types despite Sylvan not recognising them as types).
 
-# `is:` values that reveal is_extra rows the same way. Only `funny`: live 2026-10-03 (see
+# `is:` values that reveal is_extra rows the same way. Only `funny`, `watermark`, `reserved`: live 2026-10-03/04 (see
 # tests/fixtures/scryfall/is_tag_extras_reveal.json) `is:funny` returns all 1476 funny cards with or without
-# `include:extras`, whereas is:digital (7154 vs 7386 with extras), is:alchemy (824 vs 966) and is:unique
-# (16115 vs 20516) keep hiding extras, so those do not reveal.
-EXTRA_REVEALING_IS_TAGS = frozenset({"funny"})
+# `include:extras`; `has:watermark` and `is:reserved` also reveal extras. `is:digital` (7154 vs 7386 with extras),
+# `is:alchemy` (824 vs 966) and `is:unique` (16115 vs 20516) keep hiding extras, so those do not reveal.
+EXTRA_REVEALING_IS_TAGS = frozenset({"funny", "watermark", "reserved"})
 
 
 @dataclass(frozen=True)
