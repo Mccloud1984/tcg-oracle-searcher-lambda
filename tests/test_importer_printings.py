@@ -183,3 +183,21 @@ def test_default_search_visibility_of_legal_nowhere_oddities(tmp_path: Path, nam
     conn.row_factory = sqlite3.Row
     cards = conn.execute("SELECT is_extra FROM cards WHERE card_name = ?", (name,)).fetchall()
     assert [bool(r["is_extra"]) for r in cards] == [hidden]
+
+
+def test_non_english_printing_does_not_add_tags(tmp_path: Path) -> None:
+    """Arden Angel's only nonfoil printing is the Japanese psdg one (its sld printing is foil-only).
+
+    Scryfall's default search lists English printings only, so is:nonfoil excludes the card: ours was 1 over live
+    (33591 vs 33590, 2026-10-04). Real 2026-10-03 rows.
+    """
+    out = tmp_path / "lang.sqlite"
+    build(
+        FIXTURES_DIR / "default_hidden_cards.jsonl",
+        TAGS_FIXTURE,
+        out,
+        printings_path=FIXTURES_DIR / "default_hidden_printings.jsonl",
+    )
+    conn = sqlite3.connect(out)
+    conn.row_factory = sqlite3.Row
+    assert {"foil", "nonfoil"} & _tags(conn, "Arden Angel") == {"foil"}

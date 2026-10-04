@@ -488,18 +488,21 @@ def _is_extra(card: dict[str, Any]) -> bool:
     Parity 2026-10-04 (is:hires, is:nonfoil and is:spell lists against the live site): 35 more cards we showed and
     Scryfall hides, every one legal nowhere and either digital (Astral `past`, Sega `psdg`, the mtgo Gleemox promo),
     typed "Card"/"Stickers"/"Token ..." (counters, Role tokens, Secret Lair mana cards), or only in hidden printings;
-    no shown card fit. A Dungeon in a double_faced_token layout (Undercity) is shown.
+    no shown card fit. A Dungeon in a double_faced_token layout (Undercity) is shown. Non-English printings are
+    hidden (the default search is English only; Arden Angel's Japanese psdg printing was a phantom is:nonfoil).
     """
     hidden_funny = _is_playtest_or_funny(card) and not _legal_somewhere(card) and card.get("set") not in _VISIBLE_FUNNY_SETS
     hidden_alchemy = card.get("set_type") == "alchemy" and not _legal_somewhere(card)
     hidden_oddity = not _legal_somewhere(card) and (bool(card.get("digital")) or _is_non_card_object(card))
     hidden_layout = card.get("layout") in _HIDDEN_LAYOUTS and not _is_dungeon(card)
+    hidden_language = card.get("lang", "en") != "en"
     return bool(
         card.get("content_warning")
         or hidden_funny
         or hidden_alchemy
         or hidden_oddity
         or hidden_layout
+        or hidden_language
         or card.get("set_type") == "memorabilia"
     )
 
