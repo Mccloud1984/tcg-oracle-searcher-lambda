@@ -34,11 +34,10 @@ _ORDER_COLUMNS: dict[str, str] = {
     "usd": "price_usd",
 }
 
-# The SQL direction that produces what Scryfall's docs describe as each order's own arrow
-# (scryfall.com/docs/api/cards/search, "Sorting Cards"): name A->Z, released Newest->Oldest,
-# cmc 0->highest, usd 0.01->highest, edhrec lowest->highest. `dir=auto` and `dir=asc` both
-# produce this; `dir=desc` flips it ("asc" means "the direction of the arrows in the previous
-# table", not literal ascending -- released's arrow is newest-first, which is a SQL DESC).
+# The SQL direction for `dir=auto`, each order's own arrow (scryfall.com/docs/api/cards/search, "Sorting Cards"):
+# name A->Z, released Newest->Oldest, cmc 0->highest, usd 0.01->highest, edhrec lowest->highest. `dir=asc` and
+# `dir=desc` are literal SQL ASC/DESC: that is what Scryfall's API does (live 2026-10-04: order=released dir=desc is
+# newest first, dir=asc oldest first), whatever its docs' "direction of the arrows" wording suggests.
 _DEFAULT_SQL_DIRECTION: dict[str, str] = {
     "edhrec": "ASC",
     "released": "DESC",
@@ -124,9 +123,7 @@ def _order_by_sql(order: str, direction: str) -> str:
         raise Unsupported(msg)
 
     column = _ORDER_COLUMNS[order]
-    sql_direction = _DEFAULT_SQL_DIRECTION[order]
-    if direction == "desc":
-        sql_direction = "DESC" if sql_direction == "ASC" else "ASC"
+    sql_direction = _DEFAULT_SQL_DIRECTION[order] if direction == "auto" else direction.upper()
 
     clauses = []
     if order in _NULLS_LAST_ORDERS:

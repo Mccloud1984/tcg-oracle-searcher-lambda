@@ -183,12 +183,18 @@ def test_order_released_defaults_to_newest_first() -> None:
     assert _names(result) == [SOL_RING, LLANOWAR_ELVES, BLACK_LOTUS]
 
 
-def test_order_released_desc_dir_flips_to_oldest_first() -> None:
-    """dir=desc flips the *documented* arrow -- released's own arrow is newest-first."""
+def test_order_released_dir_is_literal_desc_newest_asc_oldest() -> None:
+    """Scryfall's API treats dir literally, whatever its docs' wording suggests.
+
+    Live 2026-10-04, `name:Jace identity<=UW` order=released: dir=desc and dir=auto both start with Jace, Reality
+    Sculptor (2026-10-02), dir=asc with Jace's Erasure (2011). We flipped desc to oldest-first, so Purroxy's "newest
+    cards" pass (order=released, dir=desc), the one meant to find a set released that week, got the oldest instead
+    and an upgrade never offered a Reality Fracture card (owner report, 2026-10-04).
+    """
     conn = make_db()
     _insert_three(conn)
-    result = search(conn, "", order="released", dir="desc")
-    assert _names(result) == [BLACK_LOTUS, LLANOWAR_ELVES, SOL_RING]
+    assert _names(search(conn, "", order="released", dir="desc")) == [SOL_RING, LLANOWAR_ELVES, BLACK_LOTUS]
+    assert _names(search(conn, "", order="released", dir="asc")) == [BLACK_LOTUS, LLANOWAR_ELVES, SOL_RING]
 
 
 def test_order_name_ascending() -> None:
