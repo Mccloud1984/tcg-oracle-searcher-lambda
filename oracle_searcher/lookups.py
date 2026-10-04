@@ -64,10 +64,14 @@ def _printings(
 
     `cards_first` is for a `where` on the card: without it SQLite scans all 118,000 printings (0.9 s) instead of
     finding the few cards first and reading their printings by oracle id.
+
+    Filters out hidden printings (is_extra=1) of visible oracle cards (is_extra=0), but keeps all printings
+    of hidden oracle cards (is_extra=1).
     """
     join = "CROSS JOIN" if cards_first else "JOIN"
     sql = f"SELECT card.card_json, p.card_json FROM cards AS card {join} {PRINTINGS_TABLE} AS p ON p.oracle_id = card.oracle_id"
-    sql += f" WHERE {where} ORDER BY {_PRINTING_ORDER}"
+    # Filter: keep printing if card is extra OR printing is not extra
+    sql += f" WHERE ({where}) AND (card.is_extra = 1 OR p.is_extra = 0) ORDER BY {_PRINTING_ORDER}"
     if limit:
         sql += f" LIMIT {int(limit)}"
     return [merge_overlay(json.loads(card), json.loads(overlay)) for card, overlay in conn.execute(sql, params)]

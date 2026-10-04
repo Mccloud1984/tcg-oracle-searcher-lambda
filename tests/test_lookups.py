@@ -215,9 +215,17 @@ def prints(conn: sqlite3.Connection, q: str, **fields: object) -> list[dict]:
 
 def test_prints_returns_every_printing_newest_first(db) -> None:
     data = prints(db, f'!"{SOL_RING}"')
-    (expected,) = db.execute(
-        "SELECT COUNT(*) FROM printings p JOIN cards c USING (oracle_id) WHERE c.card_name = ?", (SOL_RING,)
-    ).fetchone()
+    # Count visible printings (is_extra=0) of visible cards (is_extra=0), plus all printings of extra cards
+    (card_is_extra,) = db.execute("SELECT is_extra FROM cards WHERE card_name = ?", (SOL_RING,)).fetchone()
+    if card_is_extra:
+        (expected,) = db.execute(
+            "SELECT COUNT(*) FROM printings p JOIN cards c USING (oracle_id) WHERE c.card_name = ?", (SOL_RING,)
+        ).fetchone()
+    else:
+        # Filter: keep printing if is_extra=0
+        (expected,) = db.execute(
+            "SELECT COUNT(*) FROM printings p JOIN cards c USING (oracle_id) WHERE c.card_name = ? AND p.is_extra = 0", (SOL_RING,)
+        ).fetchone()
     assert len(data) == expected > 20
     dates = [c["released_at"] for c in data]
     assert dates == sorted(dates, reverse=True)
@@ -226,7 +234,14 @@ def test_prints_returns_every_printing_newest_first(db) -> None:
 
 def test_prints_each_entry_is_that_printings_own_card(db) -> None:
     ids = {c["id"] for c in prints(db, f'!"{SOL_RING}"')}
-    sql = "SELECT p.id FROM printings p JOIN cards c USING (oracle_id) WHERE c.card_name = ?"
+    # Get the card's is_extra flag
+    (card_is_extra,) = db.execute("SELECT is_extra FROM cards WHERE card_name = ?", (SOL_RING,)).fetchone()
+    if card_is_extra:
+        # Extra cards: return all printings
+        sql = "SELECT p.id FROM printings p JOIN cards c USING (oracle_id) WHERE c.card_name = ?"
+    else:
+        # Normal cards: only return visible printings
+        sql = "SELECT p.id FROM printings p JOIN cards c USING (oracle_id) WHERE c.card_name = ? AND p.is_extra = 0"
     printing_ids = {row[0] for row in db.execute(sql, (SOL_RING,))}
     assert ids == printing_ids
 
@@ -281,6 +296,23 @@ def test_prints_needs_the_printings_file(db) -> None:
     spy = AttachSpy()
     lookups.prints(db, {"q": '!"Sol Ring"'}, spy)
     assert spy.calls == 1
+
+
+def test_prints_filters_hidden_printings_of_visible_cards(db) -> None:
+    """Visible oracle cards (is_extra=0) should not return their hidden printings (is_extra=1).
+
+    Call from the Grave is a visible card (has an astral printing) but its mb2 printings are
+    playtest (hidden). The prints lookup should skip those hidden mb2 printings but return
+    the visible astral one.
+    """
+    all_data = prints(db, '!"Call from the Grave"')
+    # Verify we have printings (astral should have one)
+    assert len(all_data) > 0
+    # All returned printings should either be from the astral set or from non-hidden sources
+    # (mb2 printings are playtest so is_extra=1, but the oracle card is is_extra=0, so they get filtered)
+    sets = {c.get("set") for c in all_data}
+    # mb2 (playtest set) should not appear since it only has hidden printings of this visible card
+    assert "mb2" not in sets
 
 
 # autocomplete
