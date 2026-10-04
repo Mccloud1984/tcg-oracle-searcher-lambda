@@ -191,6 +191,14 @@ def test_oracle_tag_ancestors_are_included(conn: sqlite3.Connection) -> None:
         ("Bog Humbugs", True),  # hho (Happy Holidays)
         ("Collectigull // Only the Best", True),  # ph19 (Heroes of the Realm)
         ("The Windy City", True),  # punk (Black Lotus Unknown Planechase)
+        # Playtest cards in non-funny sets (live probe, same fixture file) are hidden too, except
+        # und's; and every content_warning card is hidden. Regression: `t:creature cmc<=2` showed
+        # 18 mb2 playtest creatures and Stone-Throwing Devils that Scryfall does not.
+        ("Luxior, Ignited", True),  # mb2 masters, promo_types playtest
+        ("Convention Maro", True),  # pf24 promo, promo_types playtest
+        ("Look at Me, I'm R&D", False),  # und playtest: Un-set, visible
+        ("Stone-Throwing Devils", True),  # content_warning
+        ("Pradesh Gypsies", True),  # content_warning
     ],
 )
 def test_is_extra(conn: sqlite3.Connection, name: str, *, expected_is_extra: bool) -> None:

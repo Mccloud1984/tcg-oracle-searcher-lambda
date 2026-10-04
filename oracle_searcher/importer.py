@@ -302,26 +302,34 @@ def _legal_somewhere(card: dict[str, Any]) -> bool:
     return any(status in ("legal", "restricted") for status in (card.get("legalities") or {}).values())
 
 
-# set_type "funny" sets Scryfall's default search still shows although every card is legal
-# nowhere: the Un-sets (Unglued, Unhinged, Unstable, Unsanctioned, Unfinity) and the Ponies
-# promo set. Live probe 2026-10-03, one card per funny set:
-# tests/fixtures/scryfall/funny_set_default_visibility.json. Every other funny set (playtest
-# cards, Happy Holidays, Heroes of the Realm, HasCon, ...) is hidden.
+# Un-sets Scryfall's default search still shows although every card is legal nowhere (Unglued,
+# Unhinged, Unstable, Unsanctioned, Unfinity, and the Ponies promo set). Live probe 2026-10-03,
+# one card per funny set: tests/fixtures/scryfall/funny_set_default_visibility.json. Every other
+# funny set (playtest cards, Happy Holidays, Heroes of the Realm, HasCon, ...) is hidden.
 _VISIBLE_FUNNY_SETS = frozenset({"ugl", "unh", "ust", "und", "unf", "ptg"})
+
+
+def _is_playtest_or_funny(card: dict[str, Any]) -> bool:
+    return card.get("set_type") == "funny" or "playtest" in _promo_types(card)
 
 
 def _is_extra(card: dict[str, Any]) -> bool:
     """True for what Scryfall's own default search hides (see `_HIDDEN_LAYOUTS` above).
 
-    A `set_type == "funny"` card is hidden when it is legal in no format and not from one of the
-    `_VISIBLE_FUNNY_SETS`. Parity 2026-10-03: hiding every funny card made `legal:commander`
-    31942 vs Scryfall's 32116 (the missing 174 were exactly the funny cards legal in commander,
-    e.g. Atomwheel Acrobats, Celebr-8000), and hiding the Un-set ones too made `t:creature
-    cmc<=2` 5000 vs 5071.
+    A funny-set or playtest card (the same live probe: mb2 and pf24-26 playtest promos are hidden
+    though not funny) is hidden when it is legal in no format and not from `_VISIBLE_FUNNY_SETS`.
+    Parity 2026-10-03: hiding every funny card made `legal:commander` 31942 vs Scryfall's 32116
+    (the missing 174 were exactly the funny cards legal in commander, e.g. Atomwheel Acrobats,
+    Celebr-8000), and hiding the Un-set ones too made `t:creature cmc<=2` 5000 vs 5071. Cards
+    with `content_warning` (7 in the file) are hidden as well.
     """
-    if card.get("set_type") == "funny":
-        return not _legal_somewhere(card) and card.get("set") not in _VISIBLE_FUNNY_SETS
-    return card.get("layout") in _HIDDEN_LAYOUTS or card.get("set_type") == "memorabilia"
+    hidden_funny = _is_playtest_or_funny(card) and not _legal_somewhere(card) and card.get("set") not in _VISIBLE_FUNNY_SETS
+    return bool(
+        card.get("content_warning")
+        or hidden_funny
+        or card.get("layout") in _HIDDEN_LAYOUTS
+        or card.get("set_type") == "memorabilia"
+    )
 
 
 def _is_tags(card: dict[str, Any], mana_cost_text: str | None, oracle_text: str | None) -> list[str]:
