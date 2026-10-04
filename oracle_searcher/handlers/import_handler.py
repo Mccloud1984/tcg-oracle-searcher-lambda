@@ -27,7 +27,7 @@ from typing import TYPE_CHECKING, Any
 import boto3
 
 from oracle_searcher.handlers import cards_store
-from oracle_searcher.importer import build, check
+from oracle_searcher.importer import build, check, check_printings
 from oracle_searcher.is_tag_sweep import apply_sweep
 
 if TYPE_CHECKING:
@@ -101,6 +101,8 @@ def _build_checked_database(work: Path, s3: BaseClient, bucket: str) -> tuple[di
     )
     _apply_stored_sweep(s3, bucket, work / "cards.sqlite")
     problems = check(work / "cards.sqlite")
+    if not problems:
+        problems = check_printings(work / "cards.sqlite", work / "printings.sqlite")
     if problems:
         raise ImportRejected("; ".join(problems))
     return cards_entry, stats

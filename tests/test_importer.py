@@ -13,9 +13,9 @@ from pathlib import Path
 
 import pytest
 
-from oracle_searcher.importer import _mask, build, check
+from oracle_searcher.importer import _mask, build, check, check_printings
 from oracle_searcher.schema import COLOR_BITS
-from tests.conftest import CARDS_FIXTURE, TAGS_FIXTURE, card_row, face_rows, load_fixture_cards
+from tests.conftest import CARDS_FIXTURE, PRINTINGS_FIXTURE, TAGS_FIXTURE, card_row, face_rows, load_fixture_cards
 
 
 def test_jace_vryns_prodigy_transform_faces(conn: sqlite3.Connection) -> None:
@@ -392,3 +392,60 @@ def test_commander_is_tag_meld_results_and_command_zone_creatures(tmp_path: Path
     commander_conn = sqlite3.connect(out)
     commander_conn.row_factory = sqlite3.Row
     assert ("commander" in json.loads(card_row(commander_conn, name)["card_is_tags"])) is expected_commander
+
+
+# check_printings
+
+
+def test_check_printings_with_no_printings_file_returns_empty(tmp_path: Path) -> None:
+    """check_printings() returns empty when there's no printings file (build without printings_path)."""
+    cards_path = tmp_path / "cards.sqlite"
+    build(CARDS_FIXTURE, TAGS_FIXTURE, cards_path)
+    problems = check_printings(cards_path)
+    assert problems == []
+
+
+def test_check_printings_reports_too_few_printings(tmp_path: Path) -> None:
+    """check_printings() flags a printing count below the expected minimum."""
+    cards_path = tmp_path / "cards.sqlite"
+    printings_path = tmp_path / "printings.sqlite"
+    build(CARDS_FIXTURE, TAGS_FIXTURE, cards_path, PRINTINGS_FIXTURE, printings_path)
+    problems = check_printings(cards_path, printings_path)
+    assert any("printings" in p and "100000" in p for p in problems)
+
+
+def test_check_printings_passes_known_cards_have_printings(tmp_path: Path) -> None:
+    """check_printings() does not complain about known cards having no printings when they have them."""
+    cards_path = tmp_path / "cards.sqlite"
+    printings_path = tmp_path / "printings.sqlite"
+    build(CARDS_FIXTURE, TAGS_FIXTURE, cards_path, PRINTINGS_FIXTURE, printings_path)
+    problems = check_printings(cards_path, printings_path)
+    # Should not have "has no printings" problems, even if count is low
+    assert not any("has no printings" in p for p in problems)
+
+
+def test_check_printings_detects_missing_known_card_printings(tmp_path: Path) -> None:
+    """check_printings() flags when a known card has no printings."""
+    cards_path = tmp_path / "cards.sqlite"
+    printings_path = tmp_path / "printings.sqlite"
+    build(CARDS_FIXTURE, TAGS_FIXTURE, cards_path, PRINTINGS_FIXTURE, printings_path)
+
+    # Delete one known card's printings
+    conn = sqlite3.connect(printings_path)
+    conn.execute(f"ATTACH DATABASE '{cards_path}' AS cards")
+    conn.execute("DELETE FROM printings WHERE oracle_id IN (SELECT oracle_id FROM cards.cards WHERE card_name = 'Sol Ring')")
+    conn.commit()
+    conn.close()
+
+    problems = check_printings(cards_path, printings_path)
+    assert any("Sol Ring" in p and "no printings" in p for p in problems)
+
+
+def test_check_printings_handles_missing_printings_database(tmp_path: Path) -> None:
+    """check_printings() returns a problem when printings database cannot be opened."""
+    cards_path = tmp_path / "cards.sqlite"
+    build(CARDS_FIXTURE, TAGS_FIXTURE, cards_path)
+
+    problems = check_printings(cards_path, tmp_path / "does_not_exist.sqlite")
+    assert problems  # Should have at least one problem
+    assert any("cannot" in p.lower() for p in problems)

@@ -1014,6 +1014,59 @@ _MIN_FULL_BUILD_CARD_COUNT = 30_000
 _KNOWN_CARD_NAMES = ("Black Lotus", "Sol Ring", "Lightning Bolt", "Counterspell")
 
 
+# Minimum printings count for a full build; set when default_cards is used
+_MIN_FULL_BUILD_PRINTING_COUNT = 100_000
+
+
+def check_printings(cards_db_path: str | Path, printings_db_path: str | Path | None = None) -> list[str]:
+    """Problems found in the printings database. Empty means good. Run before publishing a build.
+
+    If printings_db_path is None, tries to find the printings database by convention.
+    """
+    problems: list[str] = []
+
+    cards_db_path = Path(cards_db_path)
+
+    if printings_db_path is None:
+        # Try to infer the printings path from the cards path
+        printings_db_path = cards_db_path.with_name(cards_db_path.name.replace(".sqlite", ".printings.sqlite"))
+        if not printings_db_path.exists():
+            # No printings database, which is fine (build without printings_path)
+            return problems
+
+    printings_db_path = Path(printings_db_path)
+
+    try:
+        conn = sqlite3.connect(f"file:{printings_db_path}?mode=ro", uri=True)
+        conn.execute(f"ATTACH DATABASE 'file:{cards_db_path}?mode=ro' AS cards")
+    except sqlite3.OperationalError as exc:
+        return [f"cannot open databases: {exc}"]
+
+    try:
+        (printing_count,) = conn.execute("SELECT COUNT(*) FROM printings").fetchone()
+    except sqlite3.DatabaseError as exc:
+        conn.close()
+        return [f"cannot read printings table: {exc}"]
+
+    if printing_count < _MIN_FULL_BUILD_PRINTING_COUNT:
+        problems.append(f"only {printing_count} printings, expected at least {_MIN_FULL_BUILD_PRINTING_COUNT} for a full build")
+
+    # Check that known cards have at least one printing
+    for name in _KNOWN_CARD_NAMES:
+        try:
+            (found,) = conn.execute(
+                "SELECT COUNT(*) FROM printings p JOIN cards.cards c ON p.oracle_id = c.oracle_id WHERE c.card_name = ?",
+                (name,),
+            ).fetchone()
+            if not found:
+                problems.append(f"known card {name!r} has no printings")
+        except sqlite3.DatabaseError as exc:
+            problems.append(f"error checking card {name!r}: {exc}")
+
+    conn.close()
+    return problems
+
+
 def check(db_path: str | Path) -> list[str]:
     """Problems found in the database at `db_path`. Empty means good. Run before publishing a build."""
     problems: list[str] = []
