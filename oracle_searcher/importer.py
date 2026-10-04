@@ -197,6 +197,12 @@ def _has_color_indicator(card: dict[str, Any]) -> bool:
 _NON_SPELL_TYPES = frozenset({"Land", "Attraction", "Contraption", "Stickers", "Conspiracy", "Dungeon"})
 
 
+def _front_type_line(card: dict[str, Any]) -> str:
+    """The front face's type line (a reversible_card printing has none at the top level)."""
+    faces = card.get("card_faces") or []
+    return (faces[0].get("type_line") if faces else None) or card.get("type_line") or ""
+
+
 def _is_spell(card: dict[str, Any]) -> bool:
     """`is:spell`: the front face is not a land, Attraction, Contraption, Stickers, Conspiracy or Dungeon.
 
@@ -205,8 +211,7 @@ def _is_spell(card: dict[str, Any]) -> bool:
     """
     if card.get("layout") == "adventure":
         return True
-    faces = card.get("card_faces") or []
-    type_line = (faces[0].get("type_line") if faces else None) or card.get("type_line") or ""
+    type_line = _front_type_line(card)
     return not _NON_SPELL_TYPES & set(type_line.replace("—", " ").split())
 
 
@@ -462,12 +467,12 @@ _NON_CARD_TYPE_LINES = ("Card", "Stickers")
 
 
 def _is_non_card_object(card: dict[str, Any]) -> bool:
-    type_line = card.get("type_line") or ""
+    type_line = _front_type_line(card)
     return type_line in _NON_CARD_TYPE_LINES or type_line.startswith("Token")
 
 
 def _is_dungeon(card: dict[str, Any]) -> bool:
-    return "Dungeon" in ((card.get("type_line") or "").split(" // ")[0])
+    return "Dungeon" in _front_type_line(card)
 
 
 def _is_extra(card: dict[str, Any]) -> bool:

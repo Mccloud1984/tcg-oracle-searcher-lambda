@@ -157,6 +157,7 @@ def test_frames_of_every_printing_count_for_is_old_and_is_new(tmp_path: Path) ->
         ("Gleemox", True),  # digital-only mtgo promo, legal nowhere
         ("Aswan Jaguar", True),  # astral digital + memorabilia
         ("Faerie Dragon", True),  # astral digital + two token printings
+        ("Mechtitan", True),  # token oracle card; its sld reversible printing has faces only, typed Token
         ("Call from the Grave", True),  # astral digital + mb2 playtest printing
         ("Pinkie Pie", False),  # sld box paper, legal nowhere: Scryfall shows it
         ("Dungeon of the Mad Mage", False),  # Dungeon in token and memorabilia sets: shown
