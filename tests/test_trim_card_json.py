@@ -25,7 +25,7 @@ def _fixture_card(name: str) -> dict:
 def test_drops_fields_purroxy_never_reads() -> None:
     """Artist, frame, set URIs, flags and the like are dead weight in the 255 MB file (they were ~70% of card_json)."""
     trimmed = _trim_card_json(_fixture_card("Sol Ring"))
-    for gone in ("artist", "frame", "set_search_uri", "related_uris", "illustration_id", "games", "finishes", "lang", "object"):
+    for gone in ("artist", "frame", "set_search_uri", "related_uris", "illustration_id", "finishes", "lang", "object"):
         assert gone not in trimmed
 
 
@@ -34,7 +34,17 @@ def test_keeps_every_field_purroxy_reads() -> None:
     trimmed = _trim_card_json(card)
     for kept in ("id", "name", "mana_cost", "type_line", "oracle_text", "colors", "color_identity", "cmc", "keywords", "layout"):
         assert trimmed[kept] == card[kept]
-    for kept in ("set", "set_name", "collector_number", "released_at", "prices", "purchase_uris", "legalities", "edhrec_rank"):
+    for kept in (
+        "set",
+        "set_name",
+        "collector_number",
+        "released_at",
+        "prices",
+        "purchase_uris",
+        "legalities",
+        "edhrec_rank",
+        "games",
+    ):
         assert trimmed[kept] == card[kept]
     assert {"grid", "large", "art_crop"} <= set(trimmed["image_uris"])
 

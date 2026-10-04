@@ -108,3 +108,48 @@ def test_alchemy_card_legal_nowhere_is_hidden(full: sqlite3.Connection) -> None:
     Parity 2026-10-03: t:dragon was 449 vs Scryfall's 444 and t:elf 713 vs 698; the extras were exactly the hbg cards.
     """
     assert card_row(full, "Skanos, Green Dragon Vassal")["is_extra"] == 1
+
+
+def test_printings_table_exists(full: sqlite3.Connection) -> None:
+    """The printings table is created by build()."""
+    tables = full.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='printings'").fetchall()
+    assert len(tables) == 1
+
+
+def test_printings_table_has_required_columns(full: sqlite3.Connection) -> None:
+    """The printings table has all required columns."""
+    cols = {r["name"] for r in full.execute("PRAGMA table_info(printings)")}
+    required = {"id", "oracle_id", "set_code", "collector_number", "released_at", "set_type", "games", "card_json"}
+    assert required <= cols
+
+
+def test_printings_table_has_indexes(full: sqlite3.Connection) -> None:
+    """The printings table has the required indexes."""
+    indexes = {r["name"] for r in full.execute("SELECT name FROM sqlite_master WHERE type='index' AND tbl_name='printings'")}
+    assert "printings_oracle_id" in indexes
+    assert "printings_set_collector" in indexes
+
+
+def test_printings_table_populated_from_fixture(full: sqlite3.Connection) -> None:
+    """Every printing in the fixture is in the printings table."""
+    fixture_lines = 0
+    with PRINTINGS_FIXTURE.open(encoding="utf-8") as f:
+        for line in f:
+            if line.strip():
+                fixture_lines += 1
+
+    (count,) = full.execute("SELECT COUNT(*) FROM printings").fetchone()
+    assert count == fixture_lines
+
+
+def test_printings_contain_trimmed_card_json(full: sqlite3.Connection) -> None:
+    """Printings' card_json field is trimmed like the oracle cards' card_json."""
+    row = full.execute("SELECT card_json FROM printings LIMIT 1").fetchone()
+    assert row is not None
+    data = json.loads(row["card_json"])
+    # Should have these fields
+    assert "id" in data
+    assert "set" in data
+    # Should not have artist, frame, etc.
+    assert "artist" not in data
+    assert "frame" not in data
