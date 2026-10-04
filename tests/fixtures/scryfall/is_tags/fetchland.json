@@ -1,0 +1,57 @@
+{
+ "object": "list",
+ "total_cards": 10,
+ "has_more": false,
+ "data": [
+  {
+   "object": "card",
+   "oracle_id": "c5acf2a5-40f4-433d-a74d-1cb56c521464",
+   "name": "Arid Mesa"
+  },
+  {
+   "object": "card",
+   "oracle_id": "fc0707c7-d504-4ccf-a0d2-3eb6e26e7a57",
+   "name": "Bloodstained Mire"
+  },
+  {
+   "object": "card",
+   "oracle_id": "f3c7af78-a77d-4134-82a2-a5ce84285a84",
+   "name": "Flooded Strand"
+  },
+  {
+   "object": "card",
+   "oracle_id": "dab520d0-20b4-4273-ba6b-eb07f85ea433",
+   "name": "Marsh Flats"
+  },
+  {
+   "object": "card",
+   "oracle_id": "09dd85aa-47bc-4713-a9b9-8b52ff2285ed",
+   "name": "Misty Rainforest"
+  },
+  {
+   "object": "card",
+   "oracle_id": "ef86989d-ce80-4e55-aece-7d11710eeffa",
+   "name": "Polluted Delta"
+  },
+  {
+   "object": "card",
+   "oracle_id": "cb027150-848c-4a66-88ad-e20222304dd8",
+   "name": "Scalding Tarn"
+  },
+  {
+   "object": "card",
+   "oracle_id": "67d60b24-d429-4ded-90d9-06e49f28c396",
+   "name": "Verdant Catacombs"
+  },
+  {
+   "object": "card",
+   "oracle_id": "29737a60-3ebd-40d9-b935-c4f54b90d45d",
+   "name": "Windswept Heath"
+  },
+  {
+   "object": "card",
+   "oracle_id": "6587a463-a108-4854-b6d1-944e89b8c8a4",
+   "name": "Wooded Foothills"
+  }
+ ]
+}

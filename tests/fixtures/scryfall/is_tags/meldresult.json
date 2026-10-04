@@ -1,0 +1,42 @@
+{
+ "object": "list",
+ "total_cards": 7,
+ "has_more": false,
+ "data": [
+  {
+   "object": "card",
+   "oracle_id": "b23587e0-9fb7-492e-8bb4-f218e8e4ce6c",
+   "name": "Brisela, Voice of Nightmares"
+  },
+  {
+   "object": "card",
+   "oracle_id": "6923cf6b-7d3e-4d95-abaf-1df1a04ac7c1",
+   "name": "Chittering Host"
+  },
+  {
+   "object": "card",
+   "oracle_id": "f4905c40-003e-4992-b8d7-3f07ba09c686",
+   "name": "Hanweir, the Writhing Township"
+  },
+  {
+   "object": "card",
+   "oracle_id": "3989308a-4c0f-493a-b38f-cb4f5019dfe7",
+   "name": "Mishra, Lost to Phyrexia"
+  },
+  {
+   "object": "card",
+   "oracle_id": "14b839ef-80b1-4e7d-b2fd-38e973899cde",
+   "name": "Ragnarok, Divine Deliverance"
+  },
+  {
+   "object": "card",
+   "oracle_id": "43230d70-4d60-4ceb-bb45-fbc043280652",
+   "name": "Titania, Gaea Incarnate"
+  },
+  {
+   "object": "card",
+   "oracle_id": "759406d7-44ae-4260-9ef5-3bb2c92f751a",
+   "name": "Urza, Planeswalker"
+  }
+ ]
+}
