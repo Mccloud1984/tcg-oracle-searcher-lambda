@@ -79,7 +79,8 @@ def _latest(s3) -> str:
 
 def test_publishes_a_passing_build_and_moves_latest(s3, scryfall, monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(import_handler, "check", lambda _path: [])
-    monkeypatch.setattr(import_handler, "check_printings", lambda *_args: [])  # the fixtures are far under a full build's card count
+    # The fixtures are far under a full build's card count.
+    monkeypatch.setattr(import_handler, "check_printings", lambda *_args: [])
     result = import_handler.handler({}, None)
     assert result["key"] == NEW_KEY
     assert result["card_count"] == 92
