@@ -147,6 +147,15 @@ def _commander_front_face(card: dict[str, Any]) -> dict[str, Any]:
     return faces[0] if faces else card
 
 
+# "As long as Grist isn't on the battlefield, it's a 1/1 Insect creature": a Legendary non-creature that is a creature
+# in the command zone. Scryfall's is:commander includes it (live 2026-10-04); no other card has the text.
+_COMMAND_ZONE_CREATURE_RE = re.compile(r"isn't on the battlefield, it's an? [^.]*\bcreature\b")
+
+
+def _is_meld_result(card: dict[str, Any]) -> bool:
+    return any(part.get("id") == card.get("id") and part.get("component") == "meld_result" for part in card.get("all_parts") or [])
+
+
 def _is_commander_eligible(card: dict[str, Any], oracle_text: str | None) -> bool:
     """True for a card Scryfall's `is:commander` returns: can legally be named a commander.
 
@@ -176,10 +185,12 @@ def _is_commander_eligible(card: dict[str, Any], oracle_text: str | None) -> boo
     is_legendary = "Legendary" in type_line
     is_background = "Background" in type_line
     has_printed_toughness = "toughness" in front
-    grants_eligibility = "can be your commander" in (oracle_text or "").lower()
-    structurally_eligible = is_legendary and (has_printed_toughness or is_background)
+    text = (oracle_text or "").lower()
+    grants_eligibility = "can be your commander" in text
+    command_zone_creature = is_legendary and bool(_COMMAND_ZONE_CREATURE_RE.search(text))
+    structurally_eligible = (is_legendary and (has_printed_toughness or is_background)) or command_zone_creature
     banned_as_commander = (card.get("legalities") or {}).get("commander") == "banned"
-    return (structurally_eligible or grants_eligibility) and not banned_as_commander
+    return (structurally_eligible or grants_eligibility) and not banned_as_commander and not _is_meld_result(card)
 
 
 def _has_color_indicator(card: dict[str, Any]) -> bool:
@@ -194,18 +205,35 @@ def _has_color_indicator(card: dict[str, Any]) -> bool:
     return any(face.get("color_indicator") for face in card.get("card_faces") or [])
 
 
-def _is_spell(card: dict[str, Any]) -> bool:
-    """`is:spell`: the card's front face is not a land (Spell // Land modal DFCs count as spells)."""
+# Card types that are never cast as spells: live `-is:spell` (1322 cards, 2026-10-04) is every land plus these.
+_NON_SPELL_TYPES = frozenset({"Land", "Attraction", "Contraption", "Stickers", "Conspiracy", "Dungeon"})
+
+
+def _front_type_line(card: dict[str, Any]) -> str:
+    """The front face's type line (a reversible_card printing has none at the top level)."""
     faces = card.get("card_faces") or []
-    type_line = (faces[0].get("type_line") if faces else None) or card.get("type_line") or ""
-    return "Land" not in type_line
+    return (faces[0].get("type_line") if faces else None) or card.get("type_line") or ""
+
+
+def _is_spell(card: dict[str, Any]) -> bool:
+    """`is:spell`: the front face is not a land, Attraction, Contraption, Stickers, Conspiracy or Dungeon.
+
+    Spell // Land modal DFCs count as spells (front face is the spell). A Land // Adventure card (Midgar, City of
+    Mako) is castable as its adventure, so Scryfall counts it too.
+    """
+    if card.get("layout") == "adventure":
+        return True
+    type_line = _front_type_line(card)
+    return not _NON_SPELL_TYPES & set(type_line.replace("—", " ").split())
 
 
 def _is_scryfall_card_preview(card: dict[str, Any]) -> bool:
     """Previewed on a Scryfall card page.
 
     Scryfall's is:scryfallpreview is 6 cards; the 321 Secret Lair printings whose preview source is also "Scryfall"
-    link a set page (/sets/slz?order=spoiled) and do not count.
+    link a set page (/sets/slz?order=spoiled) and do not count. The 93 with no link at all (mostly slz) do not
+    either: counting them gave 35 cards vs 6 (tried 2026-10-04). Live also lists Dig Through Time and Goblin
+    Cratermaker, whose bulk previews are link-less or absent; we stay 2 under.
     """
     preview = card.get("preview") or {}
     return preview.get("source") == "Scryfall" and "scryfall.com/card/" in (preview.get("source_uri") or "")
@@ -227,7 +255,7 @@ IS_TAG_CHECKS: dict[str, Any] = {
     "giftbox": lambda c, *_: "giftbox" in _promo_types(c),
     "glossy": lambda c, *_: "glossy" in _promo_types(c),
     "hires": lambda c, *_: bool(c.get("highres_image")),
-    "hybrid": lambda _c, mana_cost_text, _o: bool(_HYBRID_MANA_RE.search(mana_cost_text or "")),
+    "hybrid": lambda c, *_: bool(_HYBRID_MANA_RE.search(_front_face_mana_cost(c))),
     "indicator": lambda c, *_: _has_color_indicator(c),
     "instore": lambda c, *_: "instore" in _promo_types(c),
     "intro_pack": lambda c, *_: "intropack" in _promo_types(c),
@@ -280,6 +308,8 @@ class PrintingSummary:
 
     visible_tags: set[str] = field(default_factory=set)
     hidden_tags: set[str] = field(default_factory=set)
+    visible_frames: set[str] = field(default_factory=set)
+    hidden_frames: set[str] = field(default_factory=set)
     any_visible: bool = False
 
     @property
@@ -287,11 +317,17 @@ class PrintingSummary:
         """The tags this card gets: the visible printings', or all of them when none is visible."""
         return self.visible_tags if self.any_visible else self.hidden_tags
 
+    @property
+    def frame_data(self) -> set[str]:
+        """Frame versions and effects of those printings (is:old, is:new and frame: match any printing)."""
+        return self.visible_frames if self.any_visible else self.hidden_frames
+
     def add(self, printing: dict[str, Any]) -> None:
         """Fold one printing in."""
         visible = not _is_extra(printing)
         self.any_visible = self.any_visible or visible
         tags = self.visible_tags if visible else self.hidden_tags
+        (self.visible_frames if visible else self.hidden_frames).update(_frame_data_array(printing))
         tags.update(tag for tag in PRINTING_IS_TAGS if IS_TAG_CHECKS[tag](printing, None, None))
 
 
@@ -299,10 +335,16 @@ def summarize_printings(printings_path: str | Path) -> dict[str, PrintingSummary
     """Stream a default_cards file once into one small `PrintingSummary` per oracle_id (no printing is kept)."""
     summaries: dict[str, PrintingSummary] = {}
     for printing in _open_jsonl(printings_path):
-        oracle_id = _get_oracle_id_from_printing(printing)
-        if oracle_id:
+        for oracle_id in _printing_oracle_ids(printing):
             summaries.setdefault(oracle_id, PrintingSummary()).add(printing)
     return summaries
+
+
+def _printing_oracle_ids(printing: dict[str, Any]) -> set[str]:
+    """The oracle ids a printing belongs to: its own, or (reversible_card, 83 in 2026-10-03) its faces'."""
+    if printing.get("oracle_id"):
+        return {printing["oracle_id"]}
+    return {face["oracle_id"] for face in printing.get("card_faces") or [] if face.get("oracle_id")}
 
 
 def _open_jsonl(path: str | Path) -> Iterator[dict[str, Any]]:
@@ -433,6 +475,23 @@ def _is_playtest_or_funny(card: dict[str, Any]) -> bool:
     return card.get("set_type") == "funny" or "playtest" in _promo_types(card)
 
 
+# Games whose printings Scryfall's default search shows; the other games (astral, sega) are hidden.
+_PLAYABLE_GAMES = frozenset({"paper", "mtgo", "arena"})
+
+# Types of game objects that are not cards you play. Scryfall hides these when they are legal in no format
+# (counters, Role tokens, Secret Lair mana cards, sticker sheets); Dungeons, which have their own type, stay visible.
+_NON_CARD_TYPE_LINES = ("Card", "Stickers")
+
+
+def _is_non_card_object(card: dict[str, Any]) -> bool:
+    type_line = _front_type_line(card)
+    return type_line in _NON_CARD_TYPE_LINES or type_line.startswith("Token")
+
+
+def _is_dungeon(card: dict[str, Any]) -> bool:
+    return "Dungeon" in _front_type_line(card)
+
+
 def _is_extra(card: dict[str, Any]) -> bool:
     """True for what Scryfall's own default search hides (see `_HIDDEN_LAYOUTS` above).
 
@@ -442,14 +501,30 @@ def _is_extra(card: dict[str, Any]) -> bool:
     (the missing 174 were exactly the funny cards legal in commander, e.g. Atomwheel Acrobats,
     Celebr-8000), and hiding the Un-set ones too made `t:creature cmc<=2` 5000 vs 5071. Cards
     with `content_warning` (7 in the file) are hidden as well, and so are Alchemy cards legal nowhere (the 104 hbg cards: t:elf was 713 vs 698, t:dragon 449 vs 444).
+
+    Parity 2026-10-04 (is:hires, is:nonfoil and is:spell lists against the live site): 35 more cards we showed and
+    Scryfall hides, every one legal nowhere and either digital (Astral `past`, Sega `psdg`, the mtgo Gleemox promo),
+    typed "Card"/"Stickers"/"Token ..." (counters, Role tokens, Secret Lair mana cards), or only in hidden printings;
+    no shown card fit. A Dungeon in a double_faced_token layout (Undercity) is shown. Printings that exist
+    only in another game (Astral `past`, Sega `psdg`) are hidden even for a legal card (Arden Angel's psdg printing
+    was a phantom is:nonfoil), silver-border promo printings legal nowhere (the pal04 promos of Un-cards: is:arena_league 46 vs 40;
+    the silver Secret Lair ponies stay visible), and so are `variation` printings (include:variations shows them); non-English printings still count (frame:1997 lists Hornet Queen via a French one).
     """
     hidden_funny = _is_playtest_or_funny(card) and not _legal_somewhere(card) and card.get("set") not in _VISIBLE_FUNNY_SETS
     hidden_alchemy = card.get("set_type") == "alchemy" and not _legal_somewhere(card)
+    hidden_oddity = not _legal_somewhere(card) and (bool(card.get("digital")) or _is_non_card_object(card))
+    hidden_layout = card.get("layout") in _HIDDEN_LAYOUTS and not _is_dungeon(card)
+    hidden_silver = card.get("set_type") == "promo" and card.get("border_color") == "silver" and not _legal_somewhere(card)
+    hidden_game = not _PLAYABLE_GAMES.intersection(card.get("games") or _PLAYABLE_GAMES)
     return bool(
         card.get("content_warning")
         or hidden_funny
         or hidden_alchemy
-        or card.get("layout") in _HIDDEN_LAYOUTS
+        or hidden_oddity
+        or hidden_layout
+        or hidden_silver
+        or hidden_game
+        or card.get("variation")
         or card.get("set_type") == "memorabilia"
     )
 
@@ -581,7 +656,7 @@ def _build_card_row(
         "card_layout": card.get("layout").lower() if isinstance(card.get("layout"), str) else None,
         "card_border": card.get("border_color").lower() if isinstance(card.get("border_color"), str) else None,
         "card_watermark": card.get("watermark").lower() if isinstance(card.get("watermark"), str) else None,
-        "card_frame_data": json.dumps(_frame_data_array(card)),
+        "card_frame_data": json.dumps(sorted(set(_frame_data_array(card)) | (summary.frame_data if summary else set()))),
         "card_artist": card.get("artist"),
         "released_at": card.get("released_at"),
         "edhrec_rank": card.get("edhrec_rank"),

@@ -22,7 +22,8 @@ from oracle_searcher.importer import (
     printing_card,
 )
 from oracle_searcher.schema import PRINTINGS_ALIAS, PRINTINGS_SCHEMA_VERSION
-from tests.conftest import CARDS_FIXTURE, PRINTINGS_FIXTURE, TAGS_FIXTURE, card_row
+from oracle_searcher.search import search
+from tests.conftest import CARDS_FIXTURE, FIXTURES_DIR, PRINTINGS_FIXTURE, TAGS_FIXTURE, card_row
 
 if TYPE_CHECKING:
     from pathlib import Path
@@ -253,3 +254,154 @@ def test_every_fixture_printing_round_trips_through_its_overlay():
         assert merge_overlay(card, _trim_card_json_overlay(printing, card)) == _trim_card_json(printing), printing["id"]
         checked += 1
     assert checked > 600
+
+
+def test_reversible_card_printing_counts_for_its_oracle_card(tmp_path: Path) -> None:
+    """A reversible_card printing (Secret Lair) has no top-level oracle_id, only one per face: it was skipped.
+
+    Adrix and Nev's only full-art printing is the sld reversible one; Scryfall's is:full lists 28 such cards that
+    the build missed (full 802 vs 825, 2026-10-04). Both faces carry the same oracle_id. Fixtures are real
+    2026-10-03 bulk rows.
+    """
+    out = tmp_path / "reversible.sqlite"
+    build(
+        FIXTURES_DIR / "reversible_cards.jsonl",
+        TAGS_FIXTURE,
+        out,
+        printings_path=FIXTURES_DIR / "reversible_printings.jsonl",
+    )
+    conn = sqlite3.connect(out)
+    conn.row_factory = sqlite3.Row
+    assert "full" in _tags(conn, "Adrix and Nev, Twincasters")
+
+
+def test_frames_of_every_printing_count_for_is_old_and_is_new(tmp_path: Path) -> None:
+    """Lightning Bolt's representative printing (msc) is 2015; its lea/3ed/m10 printings are 1993/1997/2003.
+
+    Scryfall's is:old / is:new match a card when ANY printing has the frame; the build read only the
+    representative's (is:old 4454 vs live 7285, is:new 29228 vs 29561, 2026-10-04). Real 2026-10-03 rows.
+    """
+    out = tmp_path / "frames.sqlite"
+    build(
+        FIXTURES_DIR / "frames_cards.jsonl",
+        TAGS_FIXTURE,
+        out,
+        printings_path=FIXTURES_DIR / "frames_printings.jsonl",
+    )
+    conn = sqlite3.connect(out)
+    for query in ("is:old", "is:new", "frame:1993", "frame:2003"):
+        assert [c["name"] for c in search(conn, query).data] == ["Lightning Bolt"], query
+
+
+@pytest.mark.parametrize(
+    ("name", "hidden"),
+    [
+        ("Red Mana", True),  # type "Card" (Secret Lair box), legal nowhere
+        ("Experience", True),  # type "Card" in token sets
+        ("Lydari Druid", True),  # digital-only (Sega box set psdg), legal nowhere
+        ("Gleemox", True),  # digital-only mtgo promo, legal nowhere
+        ("Aswan Jaguar", True),  # astral digital + memorabilia
+        ("Faerie Dragon", True),  # astral digital + two token printings
+        ("Mechtitan", True),  # token oracle card; its sld reversible printing has faces only, typed Token
+        ("Call from the Grave", True),  # astral digital + mb2 playtest printing
+        ("Pinkie Pie", False),  # sld box paper, legal nowhere: Scryfall shows it
+        ("Dungeon of the Mad Mage", False),  # Dungeon in token and memorabilia sets: shown
+        ("Undercity // The Initiative", False),  # double_faced_token layout, but a Dungeon: shown
+    ],
+)
+def test_default_search_visibility_of_legal_nowhere_oddities(tmp_path: Path, name: str, *, hidden: bool) -> None:
+    """Scryfall's default search hides cards legal nowhere whose printings are digital-only, typed Card or Token.
+
+    Measured 2026-10-04 against the live is:hires/is:nonfoil lists: 35 cards we showed that Scryfall hides, all
+    legal in no format and all printings either digital (Astral `past`, Sega `psdg`, mtgo promo), typed "Card" or
+    "Token ..." (counters, Role tokens), or already hidden; none of the 33.6k shown cards matches that. Dungeons
+    stay visible (Scryfall lists 5, incl. the double_faced_token Undercity). Real 2026-10-03 rows.
+    """
+    out = tmp_path / "hidden.sqlite"
+    build(
+        FIXTURES_DIR / "default_hidden_cards.jsonl",
+        TAGS_FIXTURE,
+        out,
+        printings_path=FIXTURES_DIR / "default_hidden_printings.jsonl",
+    )
+    conn = sqlite3.connect(out)
+    conn.row_factory = sqlite3.Row
+    cards = conn.execute("SELECT is_extra FROM cards WHERE card_name = ?", (name,)).fetchall()
+    assert [bool(r["is_extra"]) for r in cards] == [hidden]
+
+
+def test_printing_only_in_another_game_does_not_add_tags(tmp_path: Path) -> None:
+    """Arden Angel's only nonfoil printing is the Japanese psdg one (its sld printing is foil-only).
+
+    That set is Sega-only (games ["sega"]), which Scryfall's default search hides, so is:nonfoil excludes the card:
+    ours was 1 over live (33591 vs 33590, 2026-10-04). Real 2026-10-03 rows.
+    """
+    out = tmp_path / "lang.sqlite"
+    build(
+        FIXTURES_DIR / "default_hidden_cards.jsonl",
+        TAGS_FIXTURE,
+        out,
+        printings_path=FIXTURES_DIR / "default_hidden_printings.jsonl",
+    )
+    conn = sqlite3.connect(out)
+    conn.row_factory = sqlite3.Row
+    assert {"foil", "nonfoil"} & _tags(conn, "Arden Angel") == {"foil"}
+
+
+def test_variation_printing_does_not_add_a_frame(tmp_path: Path) -> None:
+    """Arcane Teachings' plst JUD-78 is frame 1997 and its variation JUD-78† is 2015 (`variation: true`).
+
+    Scryfall's default search hides variations (include:variations shows them): live frame:2015 lists no plst
+    printing of it, and ours was 4 over (is:new 29563 vs 29561, 2026-10-04). Real 2026-10-03 rows.
+    """
+    out = tmp_path / "variation.sqlite"
+    build(
+        FIXTURES_DIR / "variation_cards.jsonl",
+        TAGS_FIXTURE,
+        out,
+        printings_path=FIXTURES_DIR / "variation_printings.jsonl",
+    )
+    conn = sqlite3.connect(out)
+    assert [c["name"] for c in search(conn, "frame:1997").data] == ["Arcane Teachings"]
+    assert search(conn, "frame:2015").data == []
+
+
+def test_silver_border_promo_of_an_un_card_adds_no_tags(tmp_path: Path) -> None:
+    """Ashnod's Coupon's pal04 printing (Arena League 2004, silver border, legal nowhere) is hidden on Scryfall.
+
+    is:arena_league was 46 vs live 40: the six Un-card pal04 promos (Booster Tutor, Mise, ...) are not in the live
+    list, nor is Ashnod's Coupon in frame:2003 (2026-10-04). Its ugl printing still shows the card. Real rows.
+    """
+    out = tmp_path / "silver.sqlite"
+    build(
+        FIXTURES_DIR / "default_hidden_cards.jsonl",
+        TAGS_FIXTURE,
+        out,
+        printings_path=FIXTURES_DIR / "default_hidden_printings.jsonl",
+    )
+    conn = sqlite3.connect(out)
+    conn.row_factory = sqlite3.Row
+    assert not {"arena_league", "promo"} & _tags(conn, "Ashnod's Coupon")
+    assert not conn.execute("SELECT is_extra FROM cards WHERE card_name = ?", ("Ashnod's Coupon",)).fetchone()["is_extra"]
+
+
+def _misc_conn(tmp_path: Path) -> sqlite3.Connection:
+    out = tmp_path / "misc.sqlite"
+    build(FIXTURES_DIR / "is_misc_cards.jsonl", TAGS_FIXTURE, out)
+    conn = sqlite3.connect(out)
+    conn.row_factory = sqlite3.Row
+    return conn
+
+
+@pytest.mark.parametrize(
+    ("name", "hybrid"),
+    [
+        ("Kitchen Finks", True),
+        # Prepare layout: the front face is {2}{B}{G}, only the second face costs {B/G}. Live is:hybrid is 613, ours was 620
+        # because the seven Prepare cards matched through their second face (2026-10-04).
+        ("Lluwen, Exchange Student // Pest Friend", False),
+    ],
+)
+def test_hybrid_reads_the_front_face_cost(tmp_path: Path, name: str, *, hybrid: bool) -> None:
+    """is:hybrid looks at the front face's mana cost."""
+    assert ("hybrid" in _tags(_misc_conn(tmp_path), name)) is hybrid
