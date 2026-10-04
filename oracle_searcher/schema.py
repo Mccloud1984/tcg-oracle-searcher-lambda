@@ -109,6 +109,8 @@ CREATE TABLE meta (
 );
 
 CREATE INDEX cards_name ON cards(card_name_folded);
+CREATE INDEX cards_visible_name ON cards(is_extra, card_name_folded);  -- the lookups' name matching reads these two only,
+CREATE INDEX cards_visible_sort_key ON cards(is_extra, name_sort_key);  -- never the 3 KB rows
 CREATE INDEX cards_edhrec ON cards(edhrec_rank);
 CREATE INDEX cards_released ON cards(released_at);
 CREATE INDEX cards_cmc ON cards(cmc);

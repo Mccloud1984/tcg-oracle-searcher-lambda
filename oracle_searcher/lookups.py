@@ -27,14 +27,14 @@ MAX_COLLECTION = 75
 MAX_AUTOCOMPLETE = 20
 MIN_AUTOCOMPLETE_PREFIX = 2
 
-_COLUMNS = "card_json, released_at, oracle_id"
 _FACES = "' // ' || card_name_folded || ' // '"
-# The three ways a name matches, in order: the whole name, a face's name (earliest face first), the letters-and-digits key.
+# The ways a name matches, in order, each giving the matching cards' ids from an index alone (a scan of the cards
+# table itself costs ~100 ms): the whole name, a face's name (earliest face first), the letters-and-digits key.
 _NAME_TIERS = (
-    f"SELECT {_COLUMNS} FROM cards WHERE is_extra = :extra AND card_name_folded = :folded ORDER BY id",
-    f"SELECT {_COLUMNS} FROM cards WHERE is_extra = :extra AND instr({_FACES}, ' // ' || :folded || ' // ') > 0"
+    "SELECT id FROM cards WHERE is_extra = :extra AND card_name_folded = :folded ORDER BY id",
+    f"SELECT id FROM cards WHERE is_extra = :extra AND instr({_FACES}, ' // ' || :folded || ' // ') > 0"
     f" ORDER BY instr({_FACES}, ' // ' || :folded || ' // '), id",
-    f"SELECT {_COLUMNS} FROM cards WHERE is_extra = :extra AND :key != '' AND name_sort_key = :key ORDER BY id",
+    "SELECT id FROM cards WHERE is_extra = :extra AND :key != '' AND name_sort_key = :key ORDER BY id",
 )
 # Newest first; ties (one release day, many printings) by name, then collector number as a number where it is one.
 _PRINTING_ORDER = "p.released_at DESC, card.name_sort_key, CAST(p.collector_number AS INTEGER), p.collector_number, p.id"
@@ -45,18 +45,28 @@ def _today(today: str | None) -> str:
 
 
 def _matching_card_row(conn: sqlite3.Connection, name: str) -> tuple[str, str | None, str] | None:
-    """The `_COLUMNS` of the card called `name`: visible cards through all three matching steps first, then hidden extras."""
+    """`(card_json, released_at, oracle_id)` of the card called `name`.
+
+    Visible cards through all the matching steps first, then hidden extras.
+    """
     params = {"folded": folded_name(name), "key": name_sort_key(name)}
     for extra in (0, 1):
         for sql in _NAME_TIERS:
-            if row := conn.execute(sql, {**params, "extra": extra}).fetchone():
-                return row
+            if found := conn.execute(sql, {**params, "extra": extra}).fetchone():
+                return conn.execute("SELECT card_json, released_at, oracle_id FROM cards WHERE id = ?", found).fetchone()
     return None
 
 
-def _printings(conn: sqlite3.Connection, where: str, params: list[Any], limit: int | None = None) -> list[Card]:
-    """Printings matching `where` (aliases `card` and `p`), newest first, each as its full trimmed card JSON."""
-    sql = f"SELECT card.card_json, p.card_json FROM cards AS card JOIN {PRINTINGS_TABLE} AS p ON p.oracle_id = card.oracle_id"
+def _printings(
+    conn: sqlite3.Connection, where: str, params: list[Any], limit: int | None = None, *, cards_first: bool = False
+) -> list[Card]:
+    """Printings matching `where` (aliases `card` and `p`), newest first, each as its full trimmed card JSON.
+
+    `cards_first` is for a `where` on the card: without it SQLite scans all 118,000 printings (0.9 s) instead of
+    finding the few cards first and reading their printings by oracle id.
+    """
+    join = "CROSS JOIN" if cards_first else "JOIN"
+    sql = f"SELECT card.card_json, p.card_json FROM cards AS card {join} {PRINTINGS_TABLE} AS p ON p.oracle_id = card.oracle_id"
     sql += f" WHERE {where} ORDER BY {_PRINTING_ORDER}"
     if limit:
         sql += f" LIMIT {int(limit)}"
@@ -141,7 +151,7 @@ def prints(conn: sqlite3.Connection, event: dict[str, Any], attach: Attach, *, t
     where, params = where_for(event["q"], include_extras=True)
     clauses, filter_params = _printing_filters(event)
     attach()
-    return {"data": _printings(conn, " AND ".join([f"({where})", *clauses]), [*params, *filter_params])}
+    return {"data": _printings(conn, " AND ".join([f"({where})", *clauses]), [*params, *filter_params], cards_first=True)}
 
 
 def autocomplete(conn: sqlite3.Connection, event: dict[str, Any], attach: Attach, *, today: str | None = None) -> dict[str, Any]:  # noqa: ARG001

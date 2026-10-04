@@ -331,3 +331,14 @@ def test_autocomplete_returns_at_most_20(db, monkeypatch: pytest.MonkeyPatch) ->
 
 def test_autocomplete_multi_face_card_matches_by_its_front_face(db) -> None:
     assert "Delver of Secrets // Insectile Aberration" in autocomplete(db, "delver")
+
+
+@pytest.mark.parametrize("tier", range(len(lookups._NAME_TIERS)))
+def test_name_matching_reads_an_index_not_the_cards_table(db, tier: int) -> None:
+    """Regression: matching through `SELECT *` scanned the 3 KB rows, ~100 ms a tier, 0.4 s for a name nobody matches.
+
+    Collections of 75 names would then miss the caller's 5 s timeout; the (is_extra, name) indexes make each tier ~5 ms.
+    """
+    sql = lookups._NAME_TIERS[tier]
+    plan = " ".join(row[3] for row in db.execute(f"EXPLAIN QUERY PLAN {sql}", {"extra": 0, "folded": "x", "key": "x"}))
+    assert "COVERING INDEX" in plan
