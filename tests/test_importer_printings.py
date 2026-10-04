@@ -185,11 +185,11 @@ def test_default_search_visibility_of_legal_nowhere_oddities(tmp_path: Path, nam
     assert [bool(r["is_extra"]) for r in cards] == [hidden]
 
 
-def test_non_english_printing_does_not_add_tags(tmp_path: Path) -> None:
+def test_printing_only_in_another_game_does_not_add_tags(tmp_path: Path) -> None:
     """Arden Angel's only nonfoil printing is the Japanese psdg one (its sld printing is foil-only).
 
-    Scryfall's default search lists English printings only, so is:nonfoil excludes the card: ours was 1 over live
-    (33591 vs 33590, 2026-10-04). Real 2026-10-03 rows.
+    That set is Sega-only (games ["sega"]), which Scryfall's default search hides, so is:nonfoil excludes the card:
+    ours was 1 over live (33591 vs 33590, 2026-10-04). Real 2026-10-03 rows.
     """
     out = tmp_path / "lang.sqlite"
     build(
