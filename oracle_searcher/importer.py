@@ -74,6 +74,7 @@ _PHYREXIAN_MANA_RE = re.compile(r"/P\}")
 # reminder text exactly, including the handful of real cards with reminder text nested two or
 # three deep (e.g. "Super haste (This may attack the turn before you cast it. (You may put...))").
 _PAREN_SPAN_RE = re.compile(r"\([^()]*\)")
+_NON_ALNUM_RE = re.compile(r"[^a-z0-9]")
 _RUN_OF_SPACES_RE = re.compile(r"[ \t]+")
 _SPACE_AROUND_NEWLINE_RE = re.compile(r" *\n *")
 
@@ -370,6 +371,7 @@ def _build_card_row(
         "oracle_id": card["oracle_id"],
         "card_name": card["name"],
         "card_name_folded": fold_accents(card["name"].lower()),
+        "name_sort_key": _NON_ALNUM_RE.sub("", fold_accents(card["name"].lower())),
         "type_line": card.get("type_line"),
         "card_types": json.dumps(card_types),
         "card_subtypes": json.dumps(card_subtypes),
@@ -503,6 +505,7 @@ _CARD_COLUMNS = [
     "oracle_id",
     "card_name",
     "card_name_folded",
+    "name_sort_key",
     "type_line",
     "card_types",
     "card_subtypes",

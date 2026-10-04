@@ -115,6 +115,20 @@ def test_order_edhrec_ties_break_by_name() -> None:
     assert _names(search(conn, "t:token", order="edhrec")) == [TARMOGOYF_TOKEN, "Tyranid"]
 
 
+def test_order_name_ignores_spaces_and_punctuation() -> None:
+    """Scryfall sorts names on letters and digits only: `Angelo` before `Angel of Sanctions`.
+
+    Live 2026-10-03: order=name for `t:token` and `t:creature cmc<=2` lists have zero inversions
+    under an alphanumeric-only key and hundreds under a plain lower-cased one; the 0.05 -> 0.70
+    top-20 overlap of `t:token` was this.
+    """
+    conn = make_db()
+    insert_named_card(conn, "Angel of Sanctions")
+    insert_named_card(conn, "Angelo")
+    assert _names(search(conn, "t:token", order="name")) == ["Angelo", "Angel of Sanctions"]
+    assert _names(search(conn, "t:token", order="edhrec")) == ["Angelo", "Angel of Sanctions"]
+
+
 def test_order_released_defaults_to_newest_first() -> None:
     conn = make_db()
     _insert_three(conn)
