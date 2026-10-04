@@ -704,6 +704,7 @@ def _build_printing_row(printing: dict[str, Any], oracle_card_trimmed: dict[str,
         "released_at": printing.get("released_at"),
         "set_type": printing.get("set_type"),
         "games": json.dumps(printing.get("games") or []),
+        "is_extra": 1 if _is_extra(printing) else 0,
         "card_json": json.dumps(overlay),
     }
 
@@ -863,6 +864,7 @@ _PRINTING_COLUMNS = [
     "released_at",
     "set_type",
     "games",
+    "is_extra",
     "card_json",
 ]
 _PRINTING_BATCH_SIZE = 1000

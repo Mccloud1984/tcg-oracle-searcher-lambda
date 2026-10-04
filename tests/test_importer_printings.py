@@ -146,7 +146,7 @@ def test_build_without_printings_out_writes_no_printings_file(tmp_path: Path) ->
 def test_printings_table_has_required_columns(full: sqlite3.Connection) -> None:
     """The printings table has all required columns."""
     cols = {r["name"] for r in full.execute("PRAGMA table_info(printings)")}
-    required = {"id", "oracle_id", "set_code", "collector_number", "released_at", "set_type", "games", "card_json"}
+    required = {"id", "oracle_id", "set_code", "collector_number", "released_at", "set_type", "games", "card_json", "is_extra"}
     assert required <= cols
 
 
@@ -405,3 +405,26 @@ def _misc_conn(tmp_path: Path) -> sqlite3.Connection:
 def test_hybrid_reads_the_front_face_cost(tmp_path: Path, name: str, *, hybrid: bool) -> None:
     """is:hybrid looks at the front face's mana cost."""
     assert ("hybrid" in _tags(_misc_conn(tmp_path), name)) is hybrid
+
+
+def test_printings_is_extra_column_set_correctly(full: sqlite3.Connection) -> None:
+    """Printings have is_extra: 0 for visible, 1 for hidden (tokens, playtests, etc)."""
+    # Get a token printing (hidden)
+    token_printings = full.execute(
+        f"SELECT p.id, p.is_extra FROM {PRINTINGS_ALIAS}.printings p WHERE p.oracle_id IN "
+        "(SELECT oracle_id FROM cards WHERE card_name = 'Tyranid') LIMIT 1"
+    ).fetchall()
+    # Get a normal card printing (visible)
+    normal_printings = full.execute(
+        f"SELECT p.id, p.is_extra FROM {PRINTINGS_ALIAS}.printings p WHERE p.oracle_id IN "
+        "(SELECT oracle_id FROM cards WHERE card_name = 'Lightning Bolt') LIMIT 1"
+    ).fetchall()
+
+    # Verify we found test data
+    assert len(token_printings) > 0, "Need token printing in fixtures"
+    assert len(normal_printings) > 0, "Need normal printing in fixtures"
+
+    # Token printings should have is_extra=1
+    assert token_printings[0][1] == 1, "Token printing should have is_extra=1"
+    # Normal card printings should have is_extra=0
+    assert normal_printings[0][1] == 0, "Normal printing should have is_extra=0"

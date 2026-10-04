@@ -36,7 +36,7 @@ Value conventions:
 import sqlite3
 
 SCHEMA_VERSION = 3  # the cards file; the printings file has its own PRINTINGS_SCHEMA_VERSION
-PRINTINGS_SCHEMA_VERSION = 1
+PRINTINGS_SCHEMA_VERSION = 2
 PRINTINGS_ALIAS = "pr"  # the schema name the printings file is ATTACHed under
 PRINTINGS_TABLE = f"{PRINTINGS_ALIAS}.printings"  # how queries over the attached file name the table
 
@@ -139,6 +139,7 @@ CREATE TABLE printings (
     released_at           TEXT,
     set_type              TEXT,
     games                 TEXT NOT NULL,        -- JSON array
+    is_extra              INTEGER NOT NULL DEFAULT 0,  -- 1 for what Scryfall hides (memorabilia, playtests, variations, etc.)
     card_json             TEXT NOT NULL         -- trimmed Scryfall printing object
 );
 
