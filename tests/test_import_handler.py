@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import gzip
+import json
 import shutil
 import sqlite3
 from typing import TYPE_CHECKING
@@ -131,3 +132,45 @@ def test_catalog_without_oracle_tags_is_an_error(s3, scryfall, monkeypatch: pyte
     with pytest.raises(KeyError, match="oracle_tags"):
         import_handler.handler({}, None)
     assert _latest(s3) == OLD_KEY
+
+
+FIRST_FIXTURE_ORACLE_ID = "0013f005-2b49-48a4-8a74-9bbdadc88c9f"  # Munitions Enthusiast, first line of the sample
+
+
+def _published_tags_of(s3, tmp_path: Path, oracle_id: str) -> list[str]:
+    cards_store.download_and_gunzip(s3, BUCKET, NEW_KEY, tmp_path / "out.sqlite")
+    row = (
+        sqlite3.connect(tmp_path / "out.sqlite")
+        .execute("SELECT card_is_tags FROM cards WHERE oracle_id = ?", (oracle_id,))
+        .fetchone()
+    )
+    return json.loads(row[0])
+
+
+def test_applies_the_stored_sweep_before_check(s3, scryfall, monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    """The weekly sweep file's tags end up in the published database, and check sees them."""
+    cards_store.write_sweep(s3, BUCKET, {"swept_at": "x", "tags": {"funny": [FIRST_FIXTURE_ORACLE_ID]}})
+    seen_by_check: list[list[str]] = []
+
+    def check(path: Path) -> list[str]:
+        row = (
+            sqlite3.connect(path)
+            .execute("SELECT card_is_tags FROM cards WHERE oracle_id = ?", (FIRST_FIXTURE_ORACLE_ID,))
+            .fetchone()
+        )
+        seen_by_check.append(json.loads(row[0]))
+        return []
+
+    monkeypatch.setattr(import_handler, "check", check)
+    import_handler.handler({}, None)
+    assert "funny" in seen_by_check[0]
+    assert "funny" in _published_tags_of(s3, tmp_path, FIRST_FIXTURE_ORACLE_ID)
+
+
+def test_a_missing_sweep_file_is_fine_and_logged(s3, scryfall, monkeypatch: pytest.MonkeyPatch, tmp_path: Path, caplog) -> None:
+    monkeypatch.setattr(import_handler, "check", lambda _path: [])
+    with caplog.at_level("INFO"):
+        result = import_handler.handler({}, None)
+    assert result["key"] == NEW_KEY
+    assert "funny" not in _published_tags_of(s3, tmp_path, FIRST_FIXTURE_ORACLE_ID)
+    assert "no sweep file" in caplog.text
