@@ -1,0 +1,6 @@
+# CI and local development: the runtime set plus test and lint tools (no Postgres, Rust or font deps).
+-r lambda.txt
+boto3
+moto[s3]
+pytest
+ruff

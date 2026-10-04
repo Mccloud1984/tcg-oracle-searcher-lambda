@@ -1,0 +1,6 @@
+# Runtime dependencies of the Lambda zip (boto3 comes with the Lambda Python runtime).
+# Pins are lower bounds checked against the dev venv.
+cachebox>=6.0.0
+pyparsing>=3.1
+# 2.4.x is published as an sdist only; the zip is built with --only-binary, so stay on the last wheel.
+titlecase==2.3
