@@ -16,7 +16,7 @@ if TYPE_CHECKING:
     from pathlib import Path
 
 BUCKET = "cards-bucket"
-BUILD_KEY = "cards/20261003.sqlite.gz"
+BUILD_KEY = "cards/builds/20261003.sqlite.gz"
 
 
 @pytest.fixture

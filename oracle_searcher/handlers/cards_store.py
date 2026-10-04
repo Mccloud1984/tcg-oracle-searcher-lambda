@@ -1,7 +1,7 @@
 """Where the published card file lives in S3, shared by both handlers.
 
-Layout (one bucket, `CARDS_BUCKET`): `cards/<build>.sqlite.gz` holds a build, and `cards/latest.json`
-(`{"key": "cards/<build>.sqlite.gz"}`) points at the one to serve. The import writes `latest` last.
+Layout (one bucket, `CARDS_BUCKET`): `cards/builds/<build>.sqlite.gz` holds a build (a lifecycle rule can expire the
+whole `cards/builds/` prefix), and `cards/latest.json` (`{"key": "cards/builds/<build>.sqlite.gz"}`) points at the one to serve. The import writes `latest` last.
 """
 
 from __future__ import annotations
@@ -16,6 +16,7 @@ if TYPE_CHECKING:
 
     from botocore.client import BaseClient
 
+BUILDS_PREFIX = "cards/builds/"
 LATEST_KEY = "cards/latest.json"
 
 

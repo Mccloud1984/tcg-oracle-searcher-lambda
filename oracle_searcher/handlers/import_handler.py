@@ -59,8 +59,8 @@ def _bulk_entry(catalog: dict[str, Any], bulk_type: str) -> dict[str, Any]:
 
 
 def _build_key(cards_entry: dict[str, Any]) -> str:
-    """`cards/<digits of the oracle_cards updated_at>.sqlite.gz`, so one Scryfall export maps to one key."""
-    return f"cards/{re.sub(r'\D', '', cards_entry['updated_at'])[:14]}.sqlite.gz"
+    """`cards/builds/<digits of the oracle_cards updated_at>.sqlite.gz`, so one Scryfall export maps to one key."""
+    return f"{cards_store.BUILDS_PREFIX}{re.sub(r'\D', '', cards_entry['updated_at'])[:14]}.sqlite.gz"
 
 
 def _build_checked_database(work: Path) -> tuple[dict[str, Any], dict[str, Any]]:

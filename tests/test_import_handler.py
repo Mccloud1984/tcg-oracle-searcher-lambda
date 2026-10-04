@@ -18,7 +18,7 @@ if TYPE_CHECKING:
     from pathlib import Path
 
 BUCKET = "cards-bucket"
-OLD_KEY = "cards/old-build.sqlite.gz"
+OLD_KEY = "cards/builds/old-build.sqlite.gz"
 CATALOG_URL = "https://api.scryfall.com/bulk-data"
 CARDS_URL = "https://data.scryfall.io/oracle-cards/oracle-cards-20261003210155.jsonl.gz"
 TAGS_URL = "https://data.scryfall.io/oracle-tags/oracle-tags-20261003210032.jsonl.gz"
@@ -30,7 +30,7 @@ CATALOG = {
         {"type": "oracle_tags", "updated_at": "2026-10-03T21:00:32.494+00:00", "jsonl_download_uri": TAGS_URL},
     ]
 }
-NEW_KEY = "cards/20261003210155.sqlite.gz"
+NEW_KEY = "cards/builds/20261003210155.sqlite.gz"
 
 
 @pytest.fixture
