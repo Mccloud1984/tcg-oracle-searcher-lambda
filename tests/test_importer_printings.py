@@ -14,7 +14,8 @@ from typing import TYPE_CHECKING
 import pytest
 
 from oracle_searcher.importer import build
-from tests.conftest import CARDS_FIXTURE, PRINTINGS_FIXTURE, TAGS_FIXTURE, card_row
+from oracle_searcher.search import search
+from tests.conftest import CARDS_FIXTURE, FIXTURES_DIR, PRINTINGS_FIXTURE, TAGS_FIXTURE, card_row
 
 if TYPE_CHECKING:
     from pathlib import Path
@@ -108,3 +109,40 @@ def test_alchemy_card_legal_nowhere_is_hidden(full: sqlite3.Connection) -> None:
     Parity 2026-10-03: t:dragon was 449 vs Scryfall's 444 and t:elf 713 vs 698; the extras were exactly the hbg cards.
     """
     assert card_row(full, "Skanos, Green Dragon Vassal")["is_extra"] == 1
+
+
+def test_reversible_card_printing_counts_for_its_oracle_card(tmp_path: Path) -> None:
+    """A reversible_card printing (Secret Lair) has no top-level oracle_id, only one per face: it was skipped.
+
+    Adrix and Nev's only full-art printing is the sld reversible one; Scryfall's is:full lists 28 such cards that
+    the build missed (full 802 vs 825, 2026-10-04). Both faces carry the same oracle_id. Fixtures are real
+    2026-10-03 bulk rows.
+    """
+    out = tmp_path / "reversible.sqlite"
+    build(
+        FIXTURES_DIR / "reversible_cards.jsonl",
+        TAGS_FIXTURE,
+        out,
+        printings_path=FIXTURES_DIR / "reversible_printings.jsonl",
+    )
+    conn = sqlite3.connect(out)
+    conn.row_factory = sqlite3.Row
+    assert "full" in _tags(conn, "Adrix and Nev, Twincasters")
+
+
+def test_frames_of_every_printing_count_for_is_old_and_is_new(tmp_path: Path) -> None:
+    """Lightning Bolt's representative printing (msc) is 2015; its lea/3ed/m10 printings are 1993/1997/2003.
+
+    Scryfall's is:old / is:new match a card when ANY printing has the frame; the build read only the
+    representative's (is:old 4454 vs live 7285, is:new 29228 vs 29561, 2026-10-04). Real 2026-10-03 rows.
+    """
+    out = tmp_path / "frames.sqlite"
+    build(
+        FIXTURES_DIR / "frames_cards.jsonl",
+        TAGS_FIXTURE,
+        out,
+        printings_path=FIXTURES_DIR / "frames_printings.jsonl",
+    )
+    conn = sqlite3.connect(out)
+    for query in ("is:old", "is:new", "frame:1993", "frame:2003"):
+        assert [c["name"] for c in search(conn, query).data] == ["Lightning Bolt"], query

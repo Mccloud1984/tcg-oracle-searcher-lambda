@@ -289,6 +289,8 @@ class PrintingSummary:
 
     visible_tags: set[str] = field(default_factory=set)
     hidden_tags: set[str] = field(default_factory=set)
+    visible_frames: set[str] = field(default_factory=set)
+    hidden_frames: set[str] = field(default_factory=set)
     any_visible: bool = False
 
     @property
@@ -296,11 +298,17 @@ class PrintingSummary:
         """The tags this card gets: the visible printings', or all of them when none is visible."""
         return self.visible_tags if self.any_visible else self.hidden_tags
 
+    @property
+    def frame_data(self) -> set[str]:
+        """Frame versions and effects of those printings (is:old, is:new and frame: match any printing)."""
+        return self.visible_frames if self.any_visible else self.hidden_frames
+
     def add(self, printing: dict[str, Any]) -> None:
         """Fold one printing in."""
         visible = not _is_extra(printing)
         self.any_visible = self.any_visible or visible
         tags = self.visible_tags if visible else self.hidden_tags
+        (self.visible_frames if visible else self.hidden_frames).update(_frame_data_array(printing))
         tags.update(tag for tag in PRINTING_IS_TAGS if IS_TAG_CHECKS[tag](printing, None, None))
 
 
@@ -308,10 +316,16 @@ def summarize_printings(printings_path: str | Path) -> dict[str, PrintingSummary
     """Stream a default_cards file once into one small `PrintingSummary` per oracle_id (no printing is kept)."""
     summaries: dict[str, PrintingSummary] = {}
     for printing in _open_jsonl(printings_path):
-        oracle_id = printing.get("oracle_id")
-        if oracle_id:
+        for oracle_id in _printing_oracle_ids(printing):
             summaries.setdefault(oracle_id, PrintingSummary()).add(printing)
     return summaries
+
+
+def _printing_oracle_ids(printing: dict[str, Any]) -> set[str]:
+    """The oracle ids a printing belongs to: its own, or (reversible_card, 83 in 2026-10-03) its faces'."""
+    if printing.get("oracle_id"):
+        return {printing["oracle_id"]}
+    return {face["oracle_id"] for face in printing.get("card_faces") or [] if face.get("oracle_id")}
 
 
 def _open_jsonl(path: str | Path) -> Iterator[dict[str, Any]]:
@@ -547,7 +561,7 @@ def _build_card_row(
         "card_layout": card.get("layout").lower() if isinstance(card.get("layout"), str) else None,
         "card_border": card.get("border_color").lower() if isinstance(card.get("border_color"), str) else None,
         "card_watermark": card.get("watermark").lower() if isinstance(card.get("watermark"), str) else None,
-        "card_frame_data": json.dumps(_frame_data_array(card)),
+        "card_frame_data": json.dumps(sorted(set(_frame_data_array(card)) | (summary.frame_data if summary else set()))),
         "card_artist": card.get("artist"),
         "released_at": card.get("released_at"),
         "edhrec_rank": card.get("edhrec_rank"),
