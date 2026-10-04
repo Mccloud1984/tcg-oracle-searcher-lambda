@@ -74,6 +74,7 @@ _PHYREXIAN_MANA_RE = re.compile(r"/P\}")
 # reminder text exactly, including the handful of real cards with reminder text nested two or
 # three deep (e.g. "Super haste (This may attack the turn before you cast it. (You may put...))").
 _PAREN_SPAN_RE = re.compile(r"\([^()]*\)")
+_NON_ALNUM_RE = re.compile(r"[^a-z0-9]")
 _RUN_OF_SPACES_RE = re.compile(r"[ \t]+")
 _SPACE_AROUND_NEWLINE_RE = re.compile(r" *\n *")
 
@@ -329,18 +330,38 @@ def _mask(colors: Iterable[str] | None) -> int:
     return mask
 
 
-def _is_extra(card: dict[str, Any]) -> bool:
-    """True for what Scryfall's own search hides by default (see `_HIDDEN_LAYOUTS` above).
+def _legal_somewhere(card: dict[str, Any]) -> bool:
+    return any(status in ("legal", "restricted") for status in (card.get("legalities") or {}).values())
 
-    `set_type == "funny"` (docs/PLAN-2026-10-03.md, Purple item 4): Scryfall's docs
-    (scryfall.com/docs/syntax, "Extra Cards and Funny Cards", checked 2026-10-03) -- "Un-cards,
-    holiday cards, and other funny cards are findable with is:funny or mentioning their set" --
-    the same "name its type/set to reveal it" pattern already applied to vanguard/scheme/
-    memorabilia above. This is a documented, not a guessed, rule; it does not fully close the
-    broader default-visible-count gap against Scryfall (see the Purple section of
-    docs/PLAN-2026-10-03.md for the counting-query evidence and the residual left open).
+
+# Un-sets Scryfall's default search still shows although every card is legal nowhere (Unglued,
+# Unhinged, Unstable, Unsanctioned, Unfinity, and the Ponies promo set). Live probe 2026-10-03,
+# one card per funny set: tests/fixtures/scryfall/funny_set_default_visibility.json. Every other
+# funny set (playtest cards, Happy Holidays, Heroes of the Realm, HasCon, ...) is hidden.
+_VISIBLE_FUNNY_SETS = frozenset({"ugl", "unh", "ust", "und", "unf", "ptg"})
+
+
+def _is_playtest_or_funny(card: dict[str, Any]) -> bool:
+    return card.get("set_type") == "funny" or "playtest" in _promo_types(card)
+
+
+def _is_extra(card: dict[str, Any]) -> bool:
+    """True for what Scryfall's own default search hides (see `_HIDDEN_LAYOUTS` above).
+
+    A funny-set or playtest card (the same live probe: mb2 and pf24-26 playtest promos are hidden
+    though not funny) is hidden when it is legal in no format and not from `_VISIBLE_FUNNY_SETS`.
+    Parity 2026-10-03: hiding every funny card made `legal:commander` 31942 vs Scryfall's 32116
+    (the missing 174 were exactly the funny cards legal in commander, e.g. Atomwheel Acrobats,
+    Celebr-8000), and hiding the Un-set ones too made `t:creature cmc<=2` 5000 vs 5071. Cards
+    with `content_warning` (7 in the file) are hidden as well.
     """
-    return card.get("layout") in _HIDDEN_LAYOUTS or card.get("set_type") in ("memorabilia", "funny")
+    hidden_funny = _is_playtest_or_funny(card) and not _legal_somewhere(card) and card.get("set") not in _VISIBLE_FUNNY_SETS
+    return bool(
+        card.get("content_warning")
+        or hidden_funny
+        or card.get("layout") in _HIDDEN_LAYOUTS
+        or card.get("set_type") == "memorabilia"
+    )
 
 
 def _is_tags(card: dict[str, Any], mana_cost_text: str | None, oracle_text: str | None) -> list[str]:
@@ -381,6 +402,7 @@ def _build_card_row(
         "oracle_id": card["oracle_id"],
         "card_name": card["name"],
         "card_name_folded": fold_accents(card["name"].lower()),
+        "name_sort_key": _NON_ALNUM_RE.sub("", fold_accents(card["name"].lower())),
         "type_line": card.get("type_line"),
         "card_types": json.dumps(card_types),
         "card_subtypes": json.dumps(card_subtypes),
@@ -514,6 +536,7 @@ _CARD_COLUMNS = [
     "oracle_id",
     "card_name",
     "card_name_folded",
+    "name_sort_key",
     "type_line",
     "card_types",
     "card_subtypes",

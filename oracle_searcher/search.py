@@ -29,7 +29,7 @@ Dir = Literal["auto", "asc", "desc"]
 _ORDER_COLUMNS: dict[str, str] = {
     "edhrec": "edhrec_rank",
     "released": "released_at",
-    "name": "card_name_folded",
+    "name": "name_sort_key",
     "cmc": "cmc",
     "usd": "price_usd",
 }
@@ -124,6 +124,7 @@ def _order_by_sql(order: str, direction: str) -> str:
     if order in _NULLS_LAST_ORDERS:
         clauses.append(f"card.{column} IS NULL")
     clauses.append(f"card.{column} {sql_direction}")
+    clauses.append("card.name_sort_key ASC")  # Scryfall lists ties (all unranked cards, e.g. tokens) by name
     clauses.append("card.id ASC")  # deterministic tiebreak for stable paging
     return ", ".join(clauses)
 

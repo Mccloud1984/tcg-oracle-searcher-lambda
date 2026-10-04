@@ -34,6 +34,7 @@ CREATE TABLE cards (
     oracle_id             TEXT NOT NULL UNIQUE,
     card_name             TEXT NOT NULL,        -- full name, "Front // Back" for multi-face cards
     card_name_folded      TEXT NOT NULL,        -- lower-cased, accents folded (Sylvan's fold_accents)
+    name_sort_key         TEXT NOT NULL,        -- folded name's letters and digits only: Scryfall's name order
     type_line             TEXT,
     card_types            TEXT NOT NULL,        -- JSON array, union over faces
     card_subtypes         TEXT NOT NULL,        -- JSON array, union over faces
