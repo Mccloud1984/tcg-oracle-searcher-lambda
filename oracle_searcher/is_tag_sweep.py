@@ -109,7 +109,7 @@ def _query_for(tag: str) -> str:
     return f"{prefix}:{tag}"
 
 
-def _fetch_page(url: str) -> dict[str, Any]:
+def http_fetch_page(url: str) -> dict[str, Any]:
     """Real HTTP fetch: one Scryfall search page, raising `SweepError` on any HTTP failure."""
     request = urllib.request.Request(  # noqa: S310 - fixed https://api.scryfall.com host, not user input
         url, headers={"User-Agent": _USER_AGENT, "Accept": "application/json"}
@@ -125,9 +125,10 @@ def _fetch_page(url: str) -> dict[str, Any]:
 def sweep(
     tags: Iterable[str],
     *,
-    fetch_page: FetchPage = _fetch_page,
+    fetch_page: FetchPage = http_fetch_page,
     min_interval: float = _DEFAULT_MIN_INTERVAL,
     sleep: Callable[[float], object] = time.sleep,
+    should_continue: Callable[[], bool] = lambda: True,
 ) -> dict[str, list[str]]:
     """Return `{tag: [oracle_id, ...]}` for each of `tags`, paging `next_page` to exhaustion.
 
@@ -136,10 +137,16 @@ def sweep(
     raises `SweepError` with every tag that completed *before* that point attached as
     `.completed`; the tag that was mid-page when it failed is not included (better an absent
     tag a retry redoes in full than a silently-partial one treated as done).
+
+    `should_continue` is asked before each tag starts (never mid-tag); when it says no, the sweep
+    returns the tags finished so far without error (a Lambda uses it to stop before its timeout).
     """
     results: dict[str, list[str]] = {}
     last_request_at: float | None = None
     for tag in tags:
+        if not should_continue():
+            logger.warning("sweep stopped before %r: asked to stop (kept %d completed tag(s))", tag, len(results))
+            break
         oracle_ids: list[str] = []
         page_url: str | None = f"{_SEARCH_URL}?q={urllib.parse.quote(_query_for(tag))}&unique=cards"
         while page_url:
@@ -159,12 +166,17 @@ def sweep(
     return results
 
 
-def write_sweep_file(tags_result: dict[str, list[str]], out_path: str | Path) -> None:
-    """Write `{"swept_at", "tags"}` to `out_path` (docs/PLAN-2026-10-03.md's Teal item 2)."""
-    payload = {
+def sweep_payload(tags_result: dict[str, list[str]]) -> dict[str, Any]:
+    """The sweep file's content: `{"swept_at", "tags"}` (docs/PLAN-2026-10-03.md's Teal item 2)."""
+    return {
         "swept_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
         "tags": tags_result,
     }
+
+
+def write_sweep_file(tags_result: dict[str, list[str]], out_path: str | Path) -> None:
+    """Write the sweep payload to `out_path`."""
+    payload = sweep_payload(tags_result)
     Path(out_path).write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n")
 
 

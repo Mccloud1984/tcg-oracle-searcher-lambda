@@ -108,7 +108,7 @@ def test_real_fetch_turns_http_errors_into_sweep_errors(monkeypatch: pytest.Monk
 
     monkeypatch.setattr(is_tag_sweep.urllib.request, "urlopen", raise_it)
     with pytest.raises(SweepError, match=expected):
-        is_tag_sweep._fetch_page("https://api.scryfall.com/cards/search?q=is%3Afetchland")
+        is_tag_sweep.http_fetch_page("https://api.scryfall.com/cards/search?q=is%3Afetchland")
 
 
 def test_write_sweep_file_shape(tmp_path: Path) -> None:
@@ -205,3 +205,12 @@ def test_land_cycle_tags_match_scryfall_on_real_cards(land_db: sqlite3.Connectio
     assert saved["total_cards"] == scryfall_count
     assert _names(land_db, f"is:{tag}") == {card["name"] for card in saved["data"]}
     assert _names(land_db, f"-is:{tag} t:land") >= {"Island", "Forest"}
+
+
+def test_should_continue_false_stops_before_the_next_tag_and_returns_what_finished() -> None:
+    """The Lambda's time guard: no new tag starts once it says stop; finished tags come back, no error."""
+    fake = FakeScryfall("fetchland", "shockland")
+    answers = iter([True, False])
+    result = sweep(["fetchland", "shockland"], fetch_page=fake, min_interval=NEVER_WAIT, should_continue=lambda: next(answers))
+    assert result == {"fetchland": _ids("fetchland")}
+    assert len(fake.urls) == 1
