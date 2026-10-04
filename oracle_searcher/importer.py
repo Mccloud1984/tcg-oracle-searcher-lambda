@@ -193,11 +193,21 @@ def _has_color_indicator(card: dict[str, Any]) -> bool:
     return any(face.get("color_indicator") for face in card.get("card_faces") or [])
 
 
+# Card types that are never cast as spells: live `-is:spell` (1322 cards, 2026-10-04) is every land plus these.
+_NON_SPELL_TYPES = frozenset({"Land", "Attraction", "Contraption", "Stickers", "Conspiracy", "Dungeon"})
+
+
 def _is_spell(card: dict[str, Any]) -> bool:
-    """`is:spell`: the card's front face is not a land (Spell // Land modal DFCs count as spells)."""
+    """`is:spell`: the front face is not a land, Attraction, Contraption, Stickers, Conspiracy or Dungeon.
+
+    Spell // Land modal DFCs count as spells (front face is the spell). A Land // Adventure card (Midgar, City of
+    Mako) is castable as its adventure, so Scryfall counts it too.
+    """
+    if card.get("layout") == "adventure":
+        return True
     faces = card.get("card_faces") or []
     type_line = (faces[0].get("type_line") if faces else None) or card.get("type_line") or ""
-    return "Land" not in type_line
+    return not _NON_SPELL_TYPES & set(type_line.replace("—", " ").split())
 
 
 def _is_scryfall_card_preview(card: dict[str, Any]) -> bool:

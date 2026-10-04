@@ -337,3 +337,34 @@ def test_is_spell_tag_is_front_face_not_a_land(conn: sqlite3.Connection, name: s
     """`is:spell` is answered at import (rewrite.py stays Sylvan's): a card whose front face isn't a land."""
     tags = json.loads(card_row(conn, name)["card_is_tags"])
     assert ("spell" in tags) is is_spell
+
+
+# Real oracle cards cut from the 2026-10-03 bulk file. Scryfall's live `-is:spell` (1322 cards) is every land plus
+# Attractions, Contraptions, Stickers, Conspiracies and Dungeons, minus Land // Adventure cards (castable as the
+# adventure spell). Our rule was "front face is not a land" and was 200 cards over.
+IS_SPELL_CARDS = Path(__file__).parent / "fixtures" / "is_spell_cards.jsonl"
+
+
+@pytest.mark.parametrize(
+    ("name", "is_spell"),
+    [
+        ("Counterspell", True),
+        ("Command Tower", False),
+        ("Drop Tower", False),  # Attraction
+        ("Auto-Key", False),  # Contraption
+        ("Ancestral Hot Dog Minotaur", False),  # Stickers
+        ("Backup Plan", False),  # Conspiracy
+        ("Dungeon of the Mad Mage", False),
+        ("Hostile Hostel // Creeping Inn", False),  # Land // creature (transform): front face is a land
+        ("Midgar, City of Mako // Reactor Raid", True),  # Land // Sorcery adventure: castable
+        ("Lindblum, Industrial Regency // Mage Siege", True),
+    ],
+)
+def test_is_spell_matches_scryfall_non_spell_types(tmp_path: Path, name: str, *, is_spell: bool) -> None:
+    """is:spell is false for lands, Attractions, Contraptions, Stickers, Conspiracies and Dungeons; Land // Adventure is a spell."""
+    out = tmp_path / "spell.sqlite"
+    build(IS_SPELL_CARDS, TAGS_FIXTURE, out)
+    spell_conn = sqlite3.connect(out)
+    spell_conn.row_factory = sqlite3.Row
+    tags = json.loads(card_row(spell_conn, name)["card_is_tags"])
+    assert ("spell" in tags) is is_spell
