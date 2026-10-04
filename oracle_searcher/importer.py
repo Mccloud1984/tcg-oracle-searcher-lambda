@@ -298,18 +298,22 @@ def _mask(colors: Iterable[str] | None) -> int:
     return mask
 
 
-def _is_extra(card: dict[str, Any]) -> bool:
-    """True for what Scryfall's own search hides by default (see `_HIDDEN_LAYOUTS` above).
+def _legal_somewhere(card: dict[str, Any]) -> bool:
+    return any(status in ("legal", "restricted") for status in (card.get("legalities") or {}).values())
 
-    `set_type == "funny"` (docs/PLAN-2026-10-03.md, Purple item 4): Scryfall's docs
-    (scryfall.com/docs/syntax, "Extra Cards and Funny Cards", checked 2026-10-03) -- "Un-cards,
-    holiday cards, and other funny cards are findable with is:funny or mentioning their set" --
-    the same "name its type/set to reveal it" pattern already applied to vanguard/scheme/
-    memorabilia above. This is a documented, not a guessed, rule; it does not fully close the
-    broader default-visible-count gap against Scryfall (see the Purple section of
-    docs/PLAN-2026-10-03.md for the counting-query evidence and the residual left open).
+
+def _is_extra(card: dict[str, Any]) -> bool:
+    """True for what Scryfall's own default search hides (see `_HIDDEN_LAYOUTS` above).
+
+    `set_type == "funny"` (Un-sets, holiday cards) is hidden only when the card is legal in no
+    format. Live parity 2026-10-03: hiding all funny cards made `legal:commander` 31942 vs
+    Scryfall's 32116; the missing 174 were exactly the funny cards legal in commander (152 plain
+    + 22 oval-stamp black-border Unfinity cards, e.g. Atomwheel Acrobats, Celebr-8000). Every
+    other funny card in the 2026-10-03 file is legal nowhere.
     """
-    return card.get("layout") in _HIDDEN_LAYOUTS or card.get("set_type") in ("memorabilia", "funny")
+    if card.get("set_type") == "funny":
+        return not _legal_somewhere(card)
+    return card.get("layout") in _HIDDEN_LAYOUTS or card.get("set_type") == "memorabilia"
 
 
 def _is_tags(card: dict[str, Any], mana_cost_text: str | None, oracle_text: str | None) -> list[str]:

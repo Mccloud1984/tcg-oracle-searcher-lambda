@@ -169,7 +169,12 @@ def test_oracle_tag_ancestors_are_included(conn: sqlite3.Connection) -> None:
         # funny cards are findable with is:funny or mentioning their set" -- i.e. hidden otherwise,
         # the same "search for their type/set to reveal it" pattern as vanguard/scheme/memorabilia
         # above (docs/PLAN-2026-10-03.md, Purple item 4).
-        ("Richard Garfield, Ph.D.", True),  # set_type: funny (Unglued)
+        ("Richard Garfield, Ph.D.", True),  # set_type: funny (Unglued), legal in no format
+        # Regression: black-border Unfinity cards legal in commander ARE in Scryfall's default
+        # `legal:commander` (ours hid 174 of them as "funny": 32116 vs 31942). Funny is hidden
+        # only when legal in no format.
+        ("Atomwheel Acrobats", False),  # set_type: funny (Unfinity), legal in commander
+        ("Celebr-8000", False),  # set_type: funny (Unfinity), legal in commander
         ("Lightning Bolt", False),
         ("Jace, Vryn's Prodigy // Jace, Telepath Unbound", False),
     ],
