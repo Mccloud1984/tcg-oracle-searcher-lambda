@@ -1,4 +1,4 @@
-"""Search Lambda: answers `{"q", "order", "dir", "page"}` from the published card file.
+"""Search Lambda: answers `{"q", "order", "dir", "page"}` (and the `op` lookups, see `lookups`) from the published card file.
 
 Cold start downloads the build `latest` points at (env `CARDS_BUCKET`) to the temp dir (env `CARDS_TMP_DIR`,
 default /tmp), gunzips it and opens it read-only; later invocations reuse that connection. Never raises: the
@@ -15,6 +15,7 @@ from typing import Any
 
 import boto3
 
+from oracle_searcher import lookups
 from oracle_searcher.handlers import cards_store
 from oracle_searcher.schema import PRINTINGS_ALIAS
 from oracle_searcher.search import Unsupported, register_regexp, search
@@ -94,19 +95,33 @@ def reset() -> None:
     _printings_attached = False
 
 
+def _search(event: dict[str, Any]) -> dict[str, Any]:
+    result = search(
+        connection(),
+        event["q"],
+        order=event.get("order", "edhrec"),
+        dir=event.get("dir", "auto"),
+        page=int(event.get("page", 1)),
+    )
+    return {"data": result.data, "has_more": result.has_more, "total_cards": result.total_cards}
+
+
+def _answer(event: dict[str, Any]) -> dict[str, Any]:
+    """The answer for the event's `op` (default `search`); lookups reach the printings file through `printings_connection`."""
+    op = event.get("op", "search")
+    if op == "search":
+        return _search(event)
+    if op in lookups.OPS:
+        return lookups.OPS[op](connection(), event, printings_connection)
+    return {"unsupported": f"op {op!r} is not supported"}
+
+
 def handler(event: dict[str, Any], context: object) -> dict[str, Any]:  # noqa: ARG001
-    """Lambda entry point. Answers `{data, has_more, total_cards}`, `{unsupported: reason}` or `{error: message}`."""
+    """Lambda entry point. Answers the op's result (search: `{data, has_more, total_cards}`), `{unsupported: reason}` or `{error: message}`."""
     try:
-        result = search(
-            connection(),
-            event["q"],
-            order=event.get("order", "edhrec"),
-            dir=event.get("dir", "auto"),
-            page=int(event.get("page", 1)),
-        )
-        return {"data": result.data, "has_more": result.has_more, "total_cards": result.total_cards}
-    except Unsupported as exc:
-        return {"unsupported": str(exc)}
+        return _answer(event)
+    except (Unsupported, PrintingsUnavailable) as exc:
+        return {"unsupported": str(exc) or type(exc).__name__}
     except Exception as exc:  # the contract: never raise to the caller
-        logger.exception("search failed")
+        logger.exception("%s failed", event.get("op", "search") if isinstance(event, dict) else "event")
         return {"error": f"{type(exc).__name__}: {exc}"}

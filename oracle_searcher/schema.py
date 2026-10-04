@@ -38,6 +38,7 @@ import sqlite3
 SCHEMA_VERSION = 3  # the cards file; the printings file has its own PRINTINGS_SCHEMA_VERSION
 PRINTINGS_SCHEMA_VERSION = 1
 PRINTINGS_ALIAS = "pr"  # the schema name the printings file is ATTACHed under
+PRINTINGS_TABLE = f"{PRINTINGS_ALIAS}.printings"  # how queries over the attached file name the table
 
 COLOR_BITS = {"W": 1, "U": 2, "B": 4, "R": 8, "G": 16, "C": 32}
 

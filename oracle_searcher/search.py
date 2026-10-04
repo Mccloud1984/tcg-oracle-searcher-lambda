@@ -137,6 +137,19 @@ def _order_by_sql(order: str, direction: str) -> str:
     return ", ".join(clauses)
 
 
+def where_for(q: str, *, include_extras: bool) -> tuple[str, list[Any]]:
+    """The WHERE clause (table alias `card`) and parameters for query *q*; raises `Unsupported` rather than guessing.
+
+    Without `include_extras` the clause hides what Scryfall hides by default, unless the query names an extra type.
+    The lookup ops pass True: they must also find tokens and the like.
+    """
+    query = parse_scryfall_query(q)
+    where_sql, params = compile_query(query)
+    if include_extras or _reveals_extras(query.root):
+        return where_sql, params
+    return f"({where_sql}) AND card.is_extra = 0", params
+
+
 def search(  # noqa: PLR0913, PLR0917 - signature fixed by docs/PLAN-2026-10-03.md's search() contract
     conn: sqlite3.Connection,
     q: str,
@@ -147,10 +160,7 @@ def search(  # noqa: PLR0913, PLR0917 - signature fixed by docs/PLAN-2026-10-03.
 ) -> SearchResult:
     """Parse, compile and run *q* against *conn*. Raises `Unsupported` rather than guessing."""
     register_regexp(conn)
-    query = parse_scryfall_query(q)
-    where_sql, params = compile_query(query)
-    if not _reveals_extras(query.root):
-        where_sql = f"({where_sql}) AND card.is_extra = 0"
+    where_sql, params = where_for(q, include_extras=False)
 
     total_cards = conn.execute(
         f"SELECT COUNT(*) FROM cards AS card WHERE {where_sql}",
@@ -169,4 +179,4 @@ def search(  # noqa: PLR0913, PLR0917 - signature fixed by docs/PLAN-2026-10-03.
     return SearchResult(data=data, has_more=has_more, total_cards=total_cards)
 
 
-__all__ = ["SearchResult", "Unsupported", "register_regexp", "search"]
+__all__ = ["SearchResult", "Unsupported", "register_regexp", "search", "where_for"]

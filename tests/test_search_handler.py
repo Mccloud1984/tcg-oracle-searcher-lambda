@@ -130,3 +130,43 @@ def test_failed_cold_start_answers_error_then_recovers(s3_cards) -> None:
     assert "error" in search_handler.handler({"q": "name:sol"}, None)
     s3_cards.put_object(Bucket=BUCKET, Key="cards/latest.json", Body=json.dumps({"key": BUILD_KEY}))
     assert search_handler.handler({"q": "name:sol"}, None)["total_cards"] == 1
+
+
+# The lookup ops: named, collection, prints, autocomplete.
+
+
+def test_no_op_means_search_and_unknown_op_is_unsupported(s3_cards) -> None:
+    assert "data" in search_handler.handler({"q": "name:sol"}, None)
+    result = search_handler.handler({"op": "teleport"}, None)
+    assert set(result) == {"unsupported"}
+    assert "teleport" in result["unsupported"]
+
+
+def test_named_op_answers_from_the_cards_file_alone(s3_cards) -> None:
+    """A released card needs no printings file: it was never uploaded here (`latest` names only the cards file)."""
+    assert search_handler.handler({"op": "named", "name": "Sol Ring"}, None)["card"]["name"] == "Sol Ring"
+    assert search_handler.handler({"op": "named", "name": "No Such Card"}, None) == {"card": None}
+
+
+def test_autocomplete_op(s3_cards) -> None:
+    assert search_handler.handler({"op": "autocomplete", "prefix": "sol r"}, None) == {"names": ["Sol Ring"]}
+
+
+def test_ops_that_need_printings_attach_the_second_file(s3_printings) -> None:
+    result = search_handler.handler({"op": "prints", "q": '!"Sol Ring"'}, None)
+    assert len(result["data"]) > 20
+    ident = {"set": "trk", "collector_number": "158"}
+    assert search_handler.handler({"op": "collection", "identifiers": [ident]}, None)["data"][0]["name"] == "Munitions Enthusiast"
+
+
+def test_op_needing_printings_on_an_old_build_is_unsupported(s3_cards) -> None:
+    """Back-compat: the build `latest` names has no printings file, so Purroxy must fall back to Scryfall."""
+    result = search_handler.handler({"op": "prints", "q": '!"Sol Ring"'}, None)
+    assert set(result) == {"unsupported"}
+
+
+def test_op_unsupported_query_and_bad_input_follow_the_contract(s3_printings) -> None:
+    assert set(search_handler.handler({"op": "prints", "q": "mana:{1}{G}"}, None)) == {"unsupported"}
+    assert set(search_handler.handler({"op": "prints", "q": "(("}, None)) == {"error"}
+    assert set(search_handler.handler({"op": "named"}, None)) == {"error"}
+    assert set(search_handler.handler({"op": "collection", "identifiers": [{"name": "x"}] * 76}, None)) == {"unsupported"}

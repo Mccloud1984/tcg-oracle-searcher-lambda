@@ -33,7 +33,7 @@ from api.card_processing import (
     rarity_text_to_int,
 )
 from api.parsing.card_query_nodes import calculate_devotion, fold_accents, mana_cost_str_to_dict
-from oracle_searcher.schema import COLOR_BITS, create_printings_schema, create_schema
+from oracle_searcher.schema import COLOR_BITS, PRINTINGS_TABLE, create_printings_schema, create_schema
 
 if TYPE_CHECKING:
     from collections.abc import Iterable, Iterator
@@ -511,9 +511,9 @@ def merge_overlay(oracle_card_trimmed: dict[str, Any], overlay: dict[str, Any]) 
 
 
 def printing_card(conn: sqlite3.Connection, printing_id: str) -> dict[str, Any] | None:
-    """One printing's full trimmed card JSON, or None when there is no such printing."""
+    """One printing's full trimmed card JSON (the printings file ATTACHed), or None when there is no such printing."""
     row = conn.execute(
-        "SELECT c.card_json, p.card_json FROM printings p JOIN cards c ON p.oracle_id = c.oracle_id WHERE p.id = ?",
+        f"SELECT c.card_json, p.card_json FROM {PRINTINGS_TABLE} p JOIN cards c ON p.oracle_id = c.oracle_id WHERE p.id = ?",
         (printing_id,),
     ).fetchone()
     return merge_overlay(json.loads(row[0]), json.loads(row[1])) if row else None
@@ -521,6 +521,16 @@ def printing_card(conn: sqlite3.Connection, printing_id: str) -> dict[str, Any] 
 
 def _frame_data_array(card: dict[str, Any]) -> list[str]:
     return sorted(extract_frame_data_from_raw_card(card).keys())
+
+
+def folded_name(name: str) -> str:
+    """A card name as `cards.card_name_folded` stores it: lower-cased, accents folded. Lookups fold their input the same."""
+    return fold_accents(name.lower())
+
+
+def name_sort_key(name: str) -> str:
+    """A card name as `cards.name_sort_key` stores it: the folded name's letters and digits only."""
+    return _NON_ALNUM_RE.sub("", folded_name(name))
 
 
 def _build_card_row(
@@ -541,8 +551,8 @@ def _build_card_row(
     return {
         "oracle_id": card["oracle_id"],
         "card_name": card["name"],
-        "card_name_folded": fold_accents(card["name"].lower()),
-        "name_sort_key": _NON_ALNUM_RE.sub("", fold_accents(card["name"].lower())),
+        "card_name_folded": folded_name(card["name"]),
+        "name_sort_key": name_sort_key(card["name"]),
         "type_line": card.get("type_line"),
         "card_types": json.dumps(card_types),
         "card_subtypes": json.dumps(card_subtypes),
