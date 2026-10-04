@@ -297,25 +297,12 @@ class PrintingSummary:
 
 def summarize_printings(printings_path: str | Path) -> dict[str, PrintingSummary]:
     """Stream a default_cards file once into one small `PrintingSummary` per oracle_id (no printing is kept)."""
-    summaries, _ = _summarize_and_collect_printings(printings_path)
-    return summaries
-
-
-def _summarize_and_collect_printings(printings_path: str | Path) -> tuple[dict[str, PrintingSummary], list[dict[str, Any]]]:
-    """Stream a default_cards file once to build summaries and collect printing rows to insert.
-
-    Returns (summaries_dict, printing_rows) to avoid reading the file twice.
-    """
     summaries: dict[str, PrintingSummary] = {}
-    printing_rows: list[dict[str, Any]] = []
     for printing in _open_jsonl(printings_path):
         oracle_id = _get_oracle_id_from_printing(printing)
         if oracle_id:
             summaries.setdefault(oracle_id, PrintingSummary()).add(printing)
-            row = _build_printing_row(printing)
-            if row:
-                printing_rows.append(row)
-    return summaries, printing_rows
+    return summaries
 
 
 def _open_jsonl(path: str | Path) -> Iterator[dict[str, Any]]:
@@ -499,6 +486,56 @@ def _trim_card_json(card: dict[str, Any]) -> dict[str, Any]:
     return trimmed
 
 
+def _trim_card_json_overlay(printing: dict[str, Any], oracle_card_trimmed: dict[str, Any]) -> dict[str, Any]:
+    """Build an overlay: only the keys where printing differs from oracle_card.
+
+    The overlay + oracle_card_trimmed merged together reconstructs the full trimmed printing.
+    Card_faces: stored whole if any face differs from oracle_card's faces, otherwise omitted.
+    """
+    printing_trimmed = _trim_card_json(printing)
+    overlay: dict[str, Any] = {}
+
+    # Check each key in printing_trimmed
+    for key, value in printing_trimmed.items():
+        oracle_value = oracle_card_trimmed.get(key)
+        if key == "card_faces":
+            # Special handling for card_faces: store whole list if different
+            if value != oracle_value:
+                overlay[key] = value
+        elif value != oracle_value:
+            overlay[key] = value
+
+    return overlay
+
+
+def printing_card(conn: sqlite3.Connection, printing_id: str) -> dict[str, Any]:
+    """Reconstruct a full printing's trimmed card JSON by merging its overlay with the oracle card.
+
+    Reads from the database: the printing's overlay and the oracle card's card_json.
+    Returns the merged dict as if _trim_card_json(printing) had been stored directly.
+    """
+    row = conn.execute(
+        """
+        SELECT p.card_json as overlay_json, c.card_json as oracle_json
+        FROM printings p
+        JOIN cards c ON p.oracle_id = c.oracle_id
+        WHERE p.id = ?
+        """,
+        (printing_id,),
+    ).fetchone()
+    if not row:
+        msg = f"Printing {printing_id} not found"
+        raise ValueError(msg)
+
+    oracle_card = json.loads(row["oracle_json"])
+    overlay = json.loads(row["overlay_json"])
+
+    # Merge: start with oracle card and apply overlay
+    result = oracle_card.copy()
+    result.update(overlay)
+    return result
+
+
 def _frame_data_array(card: dict[str, Any]) -> list[str]:
     return sorted(extract_frame_data_from_raw_card(card).keys())
 
@@ -578,14 +615,18 @@ def _get_oracle_id_from_printing(printing: dict[str, Any]) -> str | None:
     return None
 
 
-def _build_printing_row(printing: dict[str, Any]) -> dict[str, Any] | None:
+def _build_printing_row(printing: dict[str, Any], oracle_card_trimmed: dict[str, Any] | None) -> dict[str, Any] | None:
     """Build one printings table row from a Scryfall printing object.
 
-    Returns None if the printing has no oracle_id (should not happen in real data).
+    The card_json field stores only an overlay (keys differing from oracle_card),
+    not the full trimmed JSON. This significantly reduces file size.
+    Returns None if the printing has no oracle_id or oracle_card.
     """
     oracle_id = _get_oracle_id_from_printing(printing)
-    if not oracle_id:
+    if not oracle_id or oracle_card_trimmed is None:
         return None
+
+    overlay = _trim_card_json_overlay(printing, oracle_card_trimmed)
 
     return {
         "id": printing.get("id"),
@@ -595,7 +636,7 @@ def _build_printing_row(printing: dict[str, Any]) -> dict[str, Any] | None:
         "released_at": printing.get("released_at"),
         "set_type": printing.get("set_type"),
         "games": json.dumps(printing.get("games") or []),
-        "card_json": json.dumps(_trim_card_json(printing)),
+        "card_json": json.dumps(overlay),
     }
 
 
@@ -761,6 +802,48 @@ _PRINTING_INSERT_SQL = (
 )
 
 
+def _insert_printings_with_overlays(conn: sqlite3.Connection, printings_path: str | Path) -> tuple[int, int]:
+    """Stream printings and insert with overlays, batching inserts.
+
+    Returns (printing_count, printing_skipped_count).
+    """
+    batch_size = 1000
+    batch: list[dict[str, Any]] = []
+    oracle_id_to_card_json: dict[str, str] = {}
+    printing_count = 0
+    printing_skipped_count = 0
+
+    for printing in _open_jsonl(printings_path):
+        oracle_id = _get_oracle_id_from_printing(printing)
+        if not oracle_id:
+            printing_skipped_count += 1
+            continue
+
+        # Load oracle card's trimmed JSON if not cached
+        if oracle_id not in oracle_id_to_card_json:
+            card_row = conn.execute("SELECT card_json FROM cards WHERE oracle_id = ?", (oracle_id,)).fetchone()
+            if not card_row:
+                printing_skipped_count += 1
+                continue
+            oracle_id_to_card_json[oracle_id] = card_row[0]
+
+        oracle_card_trimmed = json.loads(oracle_id_to_card_json[oracle_id])
+        row = _build_printing_row(printing, oracle_card_trimmed)
+        if row:
+            batch.append(row)
+            if len(batch) >= batch_size:
+                conn.executemany(_PRINTING_INSERT_SQL, [[r[c] for c in _PRINTING_COLUMNS] for r in batch])
+                printing_count += len(batch)
+                batch = []
+
+    # Insert remaining batch
+    if batch:
+        conn.executemany(_PRINTING_INSERT_SQL, [[r[c] for c in _PRINTING_COLUMNS] for r in batch])
+        printing_count += len(batch)
+
+    return printing_count, printing_skipped_count
+
+
 def build(
     cards_path: str | Path,
     tags_path: str | Path,
@@ -772,11 +855,15 @@ def build(
     Writes to `out_path` + ".tmp" and renames it into place at the end, so a build that raises
     partway through never leaves a half-written file at `out_path`.
 
-    With `printings_path` (default_cards) every printing is streamed once and folded into its oracle card's row:
-    the union of printing-level `is:` tags and "visible if any printing is" (`_summarize_and_collect_printings`),
-    and every printing is inserted into the printings table. Without it only the representative printing counts.
+    With `printings_path` (default_cards):
+    1. First streaming pass: summarize printings (union of printing-level tags, visibility).
+    2. After cards are inserted: second streaming pass to insert printings with overlay card_json.
+    3. Overlays contain only keys differing from the oracle card, reducing file size.
 
-    Returns a stats dict: card_count, face_count, tagged_card_count, printing_count, duration_seconds.
+    Without printings_path, only the representative printing counts.
+
+    Returns a stats dict including card_count, face_count, tagged_card_count, printing_count,
+    printing_skipped_count, duration_seconds.
     """
     start = time.monotonic()
     out_path = Path(out_path)
@@ -784,17 +871,18 @@ def build(
     tmp_path.unlink(missing_ok=True)
 
     oracle_id_to_tag_slugs = _oracle_id_to_tag_slugs(tags_path)
-    if printings_path:
-        summaries, printing_rows = _summarize_and_collect_printings(printings_path)
-    else:
-        summaries, printing_rows = {}, []
+    summaries = summarize_printings(printings_path) if printings_path else {}
 
     card_count = 0
     face_count = 0
+    printing_count = 0
+    printing_skipped_count = 0
     try:
         conn = sqlite3.connect(tmp_path)
         try:
             create_schema(conn)
+
+            # First pass: insert oracle cards
             for card in _open_jsonl(cards_path):
                 row = _build_card_row(card, oracle_id_to_tag_slugs, summaries.get(card["oracle_id"]))
                 cursor = conn.execute(_CARD_INSERT_SQL, [row[c] for c in _CARD_COLUMNS])
@@ -804,9 +892,9 @@ def build(
                 card_count += 1
                 face_count += len(face_rows)
 
-            # Insert printings if we collected any
-            if printing_rows:
-                conn.executemany(_PRINTING_INSERT_SQL, [[row[c] for c in _PRINTING_COLUMNS] for row in printing_rows])
+            # Second pass: stream printings and insert with overlays
+            if printings_path:
+                printing_count, printing_skipped_count = _insert_printings_with_overlays(conn, printings_path)
 
             conn.execute(
                 "INSERT INTO meta(key, value) VALUES ('card_count', ?), ('built_at', ?)",
@@ -824,7 +912,8 @@ def build(
         "card_count": card_count,
         "face_count": face_count,
         "tagged_card_count": len(oracle_id_to_tag_slugs),
-        "printing_count": len(printing_rows),
+        "printing_count": printing_count,
+        "printing_skipped_count": printing_skipped_count,
         "duration_seconds": round(time.monotonic() - start, 2),
     }
 

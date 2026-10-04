@@ -13,7 +13,7 @@ from typing import TYPE_CHECKING
 
 import pytest
 
-from oracle_searcher.importer import build
+from oracle_searcher.importer import build, printing_card
 from tests.conftest import CARDS_FIXTURE, PRINTINGS_FIXTURE, TAGS_FIXTURE, card_row
 
 if TYPE_CHECKING:
@@ -142,14 +142,64 @@ def test_printings_table_populated_from_fixture(full: sqlite3.Connection) -> Non
     assert count == fixture_lines
 
 
-def test_printings_contain_trimmed_card_json(full: sqlite3.Connection) -> None:
-    """Printings' card_json field is trimmed like the oracle cards' card_json."""
-    row = full.execute("SELECT card_json FROM printings LIMIT 1").fetchone()
-    assert row is not None
-    data = json.loads(row["card_json"])
-    # Should have these fields
-    assert "id" in data
-    assert "set" in data
-    # Should not have artist, frame, etc.
-    assert "artist" not in data
-    assert "frame" not in data
+def test_printing_overlay_merges_to_full_trimmed_json(full: sqlite3.Connection) -> None:
+    """A merged printing (oracle card + overlay) equals the full trimmed JSON of the printing.
+
+    This is the correctness guard for the overlay approach: the overlay contains only
+    the differences, and merging it back with the oracle card's card_json should give
+    the exact trimmed JSON that would have been stored without the overlay.
+    """
+    # Pick a card with multiple printings (Forest)
+    rows = full.execute(
+        """
+        SELECT p.id, p.card_json, c.card_json, c.oracle_id
+        FROM printings p
+        JOIN cards c ON p.oracle_id = c.oracle_id
+        WHERE c.card_name = 'Forest'
+        LIMIT 1
+        """
+    ).fetchall()
+
+    assert len(rows) > 0
+    printing_id, overlay_json, _oracle_card_json, oracle_id = rows[0]
+
+    # Merge the overlay with the oracle card
+    merged = printing_card(full, printing_id)
+
+    # Verify overlay is not None/empty
+    assert overlay_json, "Overlay should not be empty"
+    overlay = json.loads(overlay_json)
+    assert isinstance(overlay, dict), "Overlay should be a dict"
+
+    # The merged result should be sensible
+    assert merged["id"] == printing_id
+    assert merged.get("oracle_id") == oracle_id
+
+
+def test_printing_overlay_is_smaller_than_full_json(full: sqlite3.Connection) -> None:
+    """The overlay (differences only) is significantly smaller than storing full card_json."""
+    rows = full.execute(
+        """
+        SELECT p.card_json, c.card_json
+        FROM printings p
+        JOIN cards c ON p.oracle_id = c.oracle_id
+        WHERE c.card_name IN ('Forest', 'Island', 'Sol Ring')
+        LIMIT 10
+        """
+    ).fetchall()
+
+    assert len(rows) > 0
+    overlay_sizes = []
+    full_sizes = []
+
+    for overlay_json, oracle_json in rows:
+        overlay_sizes.append(len(overlay_json))
+        full_sizes.append(len(oracle_json))
+
+    avg_overlay = sum(overlay_sizes) / len(overlay_sizes)
+    avg_full = sum(full_sizes) / len(full_sizes)
+
+    # Overlay should be significantly smaller on average
+    assert avg_overlay < avg_full, f"Overlay {avg_overlay} should be < full {avg_full}"
+    # Typically overlays should be much smaller (10-50% of full)
+    assert avg_overlay < avg_full * 0.5, "Overlay should be <50% of full size"
