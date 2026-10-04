@@ -29,7 +29,7 @@ The compiler raises `Unsupported` for any `is:`/`has:` value that is neither rew
 | commander | front-face check (`_is_commander_eligible`) |
 | hybrid, phyrexian | mana-symbol regex on cost (and oracle text for phyrexian) |
 | indicator (`has:`) | card has a color indicator |
-| partner | partner-family keyword present |
+| partner | legendary card with a partner-like keyword (Partner, Partner with, Friends forever, Choose a background, Doctor's companion), a Background, or a Time Lord Doctor (224 vs live 228; rest are extras we hide) |
 | spell | not a permanent type (kept a leaf because Sylvan's tests require it) |
 
 ## Sweep (`SWEEP_TAGS`)
