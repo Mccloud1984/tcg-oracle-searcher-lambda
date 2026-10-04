@@ -86,3 +86,17 @@ def test_printing_tags_only_grow(plain: sqlite3.Connection, full: sqlite3.Connec
     for row in plain.execute("SELECT oracle_id, card_is_tags FROM cards"):
         grown = full.execute("SELECT card_is_tags FROM cards WHERE oracle_id = ?", (row["oracle_id"],)).fetchone()
         assert set(json.loads(row["card_is_tags"])) <= set(json.loads(grown["card_is_tags"]))
+
+
+def test_hidden_printing_adds_no_tags_to_a_visible_card(full: sqlite3.Connection) -> None:
+    """Griselbrand's only in-store promo printing is in phel, a memorabilia set Scryfall's default search hides.
+
+    Parity 2026-10-03: unioning hidden printings too made is:instore 126 vs Scryfall's 116 (is:etched, foil, reprint too).
+    """
+    assert "instore" not in _tags(full, "Griselbrand")
+
+
+def test_scryfall_preview_means_a_card_page_not_a_set_page(full: sqlite3.Connection) -> None:
+    """Scryfall's is:scryfallpreview is 6 cards (preview.source_uri is a /card/ page); the 321 slz printings link a set page."""
+    assert "scryfallpreview" in _tags(full, "Kraul Stinger")
+    assert "scryfallpreview" not in _tags(full, "Lightning Bolt")

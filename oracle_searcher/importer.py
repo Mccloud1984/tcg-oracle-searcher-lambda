@@ -200,6 +200,16 @@ def _is_spell(card: dict[str, Any]) -> bool:
     return "Land" not in type_line
 
 
+def _is_scryfall_card_preview(card: dict[str, Any]) -> bool:
+    """Previewed on a Scryfall card page.
+
+    Scryfall's is:scryfallpreview is 6 cards; the 321 Secret Lair printings whose preview source is also "Scryfall"
+    link a set page (/sets/slz?order=spoiled) and do not count.
+    """
+    preview = card.get("preview") or {}
+    return preview.get("source") == "Scryfall" and "scryfall.com/card/" in (preview.get("source_uri") or "")
+
+
 IS_TAG_CHECKS: dict[str, Any] = {
     "arena_league": lambda c, *_: "arenaleague" in _promo_types(c),
     "booster": lambda c, *_: bool(c.get("booster")),
@@ -236,7 +246,7 @@ IS_TAG_CHECKS: dict[str, Any] = {
     "release": lambda c, *_: "release" in _promo_types(c),
     "reprint": lambda c, *_: bool(c.get("reprint")),
     "reserved": lambda c, *_: bool(c.get("reserved")),
-    "scryfallpreview": lambda c, *_: (c.get("preview") or {}).get("source") == "Scryfall",
+    "scryfallpreview": lambda c, *_: _is_scryfall_card_preview(c),
     "set_promo": lambda c, *_: "setpromo" in _promo_types(c),
     "spell": lambda c, *_: _is_spell(c),
     "spotlight": lambda c, *_: bool(c.get("story_spotlight")),
@@ -261,10 +271,27 @@ PRINTING_IS_TAGS = frozenset(IS_TAG_CHECKS) - {
 
 @dataclass
 class PrintingSummary:
-    """What every printing of one oracle card adds: the union of printing-level tags and any default-visible printing."""
+    """What every printing of one oracle card adds, split by default visibility.
 
-    is_tags: set[str] = field(default_factory=set)
+    Scryfall's default search ignores hidden printings (memorabilia, playtest, ...): parity 2026-10-03, unioning them
+    made is:instore 126 vs 116. A card with no visible printing at all keeps the hidden ones' tags (include:extras).
+    """
+
+    visible_tags: set[str] = field(default_factory=set)
+    hidden_tags: set[str] = field(default_factory=set)
     any_visible: bool = False
+
+    @property
+    def is_tags(self) -> set[str]:
+        """The tags this card gets: the visible printings', or all of them when none is visible."""
+        return self.visible_tags if self.any_visible else self.hidden_tags
+
+    def add(self, printing: dict[str, Any]) -> None:
+        """Fold one printing in."""
+        visible = not _is_extra(printing)
+        self.any_visible = self.any_visible or visible
+        tags = self.visible_tags if visible else self.hidden_tags
+        tags.update(tag for tag in PRINTING_IS_TAGS if IS_TAG_CHECKS[tag](printing, None, None))
 
 
 def summarize_printings(printings_path: str | Path) -> dict[str, PrintingSummary]:
@@ -272,11 +299,8 @@ def summarize_printings(printings_path: str | Path) -> dict[str, PrintingSummary
     summaries: dict[str, PrintingSummary] = {}
     for printing in _open_jsonl(printings_path):
         oracle_id = printing.get("oracle_id")
-        if not oracle_id:
-            continue
-        summary = summaries.setdefault(oracle_id, PrintingSummary())
-        summary.is_tags.update(tag for tag in PRINTING_IS_TAGS if IS_TAG_CHECKS[tag](printing, None, None))
-        summary.any_visible = summary.any_visible or not _is_extra(printing)
+        if oracle_id:
+            summaries.setdefault(oracle_id, PrintingSummary()).add(printing)
     return summaries
 
 

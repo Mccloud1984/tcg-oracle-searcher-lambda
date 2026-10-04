@@ -80,7 +80,7 @@ def test_publishes_a_passing_build_and_moves_latest(s3, scryfall, monkeypatch: p
     monkeypatch.setattr(import_handler, "check", lambda _path: [])  # the fixtures are far under a full build's card count
     result = import_handler.handler({}, None)
     assert result["key"] == NEW_KEY
-    assert result["card_count"] == 90
+    assert result["card_count"] == 91
     assert _latest(s3) == NEW_KEY
     assert scryfall == [CATALOG_URL, CARDS_URL, TAGS_URL, PRINTINGS_URL]
 
@@ -90,7 +90,7 @@ def test_published_file_is_a_gzipped_working_database(s3, scryfall, monkeypatch:
     import_handler.handler({}, None)
     cards_store.download_and_gunzip(s3, BUCKET, NEW_KEY, tmp_path / "out.sqlite")
     (count,) = sqlite3.connect(tmp_path / "out.sqlite").execute("SELECT COUNT(*) FROM cards").fetchone()
-    assert count == 90
+    assert count == 91
 
 
 def test_published_build_includes_every_printing(s3, scryfall, monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
@@ -105,7 +105,7 @@ def test_published_build_includes_every_printing(s3, scryfall, monkeypatch: pyte
 
 
 def test_failing_check_keeps_the_old_latest_and_uploads_nothing(s3, scryfall) -> None:
-    """The real check rejects the 90-card fixture build (a full file has over 30,000 cards)."""
+    """The real check rejects the 91-card fixture build (a full file has over 30,000 cards)."""
     with pytest.raises(import_handler.ImportRejected, match="cards, expected at least"):
         import_handler.handler({}, None)
     assert _latest(s3) == OLD_KEY
