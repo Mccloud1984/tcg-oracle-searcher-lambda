@@ -40,7 +40,13 @@ def _open_published_file() -> sqlite3.Connection:
 
 
 def connection() -> sqlite3.Connection:
-    """The read-only connection, opened on first use and kept for the life of the Lambda container."""
+    """The read-only connection, opened on first use and kept for the life of the Lambda container.
+
+    Known limitation: a warm container never rechecks `latest`, so after the nightly import it keeps answering
+    from the previous build until AWS recycles it (minutes when idle, a few hours under steady traffic). Accepted
+    for now (an hour or so of stale cards is fine). If it ever matters: recheck `latest` every few minutes here and
+    reopen when the key changes, or have the import Lambda touch this function's config to force fresh containers.
+    """
     global _conn  # noqa: PLW0603 - Lambda container reuse is the point
     if _conn is None:
         _conn = _open_published_file()
