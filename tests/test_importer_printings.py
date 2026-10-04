@@ -146,3 +146,39 @@ def test_frames_of_every_printing_count_for_is_old_and_is_new(tmp_path: Path) ->
     conn = sqlite3.connect(out)
     for query in ("is:old", "is:new", "frame:1993", "frame:2003"):
         assert [c["name"] for c in search(conn, query).data] == ["Lightning Bolt"], query
+
+
+@pytest.mark.parametrize(
+    ("name", "hidden"),
+    [
+        ("Red Mana", True),  # type "Card" (Secret Lair box), legal nowhere
+        ("Experience", True),  # type "Card" in token sets
+        ("Lydari Druid", True),  # digital-only (Sega box set psdg), legal nowhere
+        ("Gleemox", True),  # digital-only mtgo promo, legal nowhere
+        ("Aswan Jaguar", True),  # astral digital + memorabilia
+        ("Faerie Dragon", True),  # astral digital + two token printings
+        ("Call from the Grave", True),  # astral digital + mb2 playtest printing
+        ("Pinkie Pie", False),  # sld box paper, legal nowhere: Scryfall shows it
+        ("Dungeon of the Mad Mage", False),  # Dungeon in token and memorabilia sets: shown
+        ("Undercity // The Initiative", False),  # double_faced_token layout, but a Dungeon: shown
+    ],
+)
+def test_default_search_visibility_of_legal_nowhere_oddities(tmp_path: Path, name: str, *, hidden: bool) -> None:
+    """Scryfall's default search hides cards legal nowhere whose printings are digital-only, typed Card or Token.
+
+    Measured 2026-10-04 against the live is:hires/is:nonfoil lists: 35 cards we showed that Scryfall hides, all
+    legal in no format and all printings either digital (Astral `past`, Sega `psdg`, mtgo promo), typed "Card" or
+    "Token ..." (counters, Role tokens), or already hidden; none of the 33.6k shown cards matches that. Dungeons
+    stay visible (Scryfall lists 5, incl. the double_faced_token Undercity). Real 2026-10-03 rows.
+    """
+    out = tmp_path / "hidden.sqlite"
+    build(
+        FIXTURES_DIR / "default_hidden_cards.jsonl",
+        TAGS_FIXTURE,
+        out,
+        printings_path=FIXTURES_DIR / "default_hidden_printings.jsonl",
+    )
+    conn = sqlite3.connect(out)
+    conn.row_factory = sqlite3.Row
+    cards = conn.execute("SELECT is_extra FROM cards WHERE card_name = ?", (name,)).fetchall()
+    assert [bool(r["is_extra"]) for r in cards] == [hidden]

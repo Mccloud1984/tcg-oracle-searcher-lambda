@@ -456,6 +456,20 @@ def _is_playtest_or_funny(card: dict[str, Any]) -> bool:
     return card.get("set_type") == "funny" or "playtest" in _promo_types(card)
 
 
+# Types of game objects that are not cards you play. Scryfall hides these when they are legal in no format
+# (counters, Role tokens, Secret Lair mana cards, sticker sheets); Dungeons, which have their own type, stay visible.
+_NON_CARD_TYPE_LINES = ("Card", "Stickers")
+
+
+def _is_non_card_object(card: dict[str, Any]) -> bool:
+    type_line = card.get("type_line") or ""
+    return type_line in _NON_CARD_TYPE_LINES or type_line.startswith("Token")
+
+
+def _is_dungeon(card: dict[str, Any]) -> bool:
+    return "Dungeon" in ((card.get("type_line") or "").split(" // ")[0])
+
+
 def _is_extra(card: dict[str, Any]) -> bool:
     """True for what Scryfall's own default search hides (see `_HIDDEN_LAYOUTS` above).
 
@@ -465,14 +479,22 @@ def _is_extra(card: dict[str, Any]) -> bool:
     (the missing 174 were exactly the funny cards legal in commander, e.g. Atomwheel Acrobats,
     Celebr-8000), and hiding the Un-set ones too made `t:creature cmc<=2` 5000 vs 5071. Cards
     with `content_warning` (7 in the file) are hidden as well, and so are Alchemy cards legal nowhere (the 104 hbg cards: t:elf was 713 vs 698, t:dragon 449 vs 444).
+
+    Parity 2026-10-04 (is:hires, is:nonfoil and is:spell lists against the live site): 35 more cards we showed and
+    Scryfall hides, every one legal nowhere and either digital (Astral `past`, Sega `psdg`, the mtgo Gleemox promo),
+    typed "Card"/"Stickers"/"Token ..." (counters, Role tokens, Secret Lair mana cards), or only in hidden printings;
+    no shown card fit. A Dungeon in a double_faced_token layout (Undercity) is shown.
     """
     hidden_funny = _is_playtest_or_funny(card) and not _legal_somewhere(card) and card.get("set") not in _VISIBLE_FUNNY_SETS
     hidden_alchemy = card.get("set_type") == "alchemy" and not _legal_somewhere(card)
+    hidden_oddity = not _legal_somewhere(card) and (bool(card.get("digital")) or _is_non_card_object(card))
+    hidden_layout = card.get("layout") in _HIDDEN_LAYOUTS and not _is_dungeon(card)
     return bool(
         card.get("content_warning")
         or hidden_funny
         or hidden_alchemy
-        or card.get("layout") in _HIDDEN_LAYOUTS
+        or hidden_oddity
+        or hidden_layout
         or card.get("set_type") == "memorabilia"
     )
 
