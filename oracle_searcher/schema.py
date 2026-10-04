@@ -1,8 +1,14 @@
 r"""The SQLite card file's schema: the contract between the importer (which writes it) and the search (which reads it).
 
-One row in `cards` per Scryfall oracle card (the `oracle_cards` bulk file), so a search returns each card once, as
-Scryfall's default `unique=cards` does. Column names follow Sylvan Librarian's (`api/parsing/db_info.py`) so its
-parser's attribute names map one to one.
+Tables:
+- `cards`: one row per Scryfall oracle card (the `oracle_cards` bulk file), so a search returns each card once, as
+  Scryfall's default `unique=cards` does. Column names follow Sylvan Librarian's (`api/parsing/db_info.py`) so its
+  parser's attribute names map one to one.
+- `card_faces`: one row per face of multi-face cards.
+- `meta`: schema version and build metadata.
+- `printings` (v3+): one row per printing (the `default_cards` bulk file). Contains id (Scryfall printing id),
+  oracle_id (links to cards.oracle_id), set_code, collector_number, released_at, set_type, games (JSON array),
+  and card_json (trimmed Scryfall printing object). Indexed on oracle_id and (set_code, collector_number).
 
 Value conventions:
 - Colour masks: W=1, U=2, B=4, R=8, G=16; `produced_mana` also uses C=32. Colourless is 0.
@@ -24,7 +30,7 @@ Value conventions:
 
 import sqlite3
 
-SCHEMA_VERSION = 2
+SCHEMA_VERSION = 3
 
 COLOR_BITS = {"W": 1, "U": 2, "B": 4, "R": 8, "G": 16, "C": 32}
 
@@ -94,12 +100,25 @@ CREATE TABLE meta (
     value TEXT NOT NULL   -- schema_version, source_updated_at, built_at, card_count
 );
 
+CREATE TABLE printings (
+    id                    TEXT PRIMARY KEY,
+    oracle_id             TEXT NOT NULL,
+    set_code              TEXT,
+    collector_number      TEXT,
+    released_at           TEXT,
+    set_type              TEXT,
+    games                 TEXT NOT NULL,        -- JSON array
+    card_json             TEXT NOT NULL         -- trimmed Scryfall printing object
+);
+
 CREATE INDEX cards_name ON cards(card_name_folded);
 CREATE INDEX cards_edhrec ON cards(edhrec_rank);
 CREATE INDEX cards_released ON cards(released_at);
 CREATE INDEX cards_cmc ON cards(cmc);
 CREATE INDEX cards_usd ON cards(price_usd);
 CREATE INDEX cards_identity ON cards(card_color_identity);
+CREATE INDEX printings_oracle_id ON printings(oracle_id);
+CREATE INDEX printings_set_collector ON printings(set_code, collector_number);
 """
 
 
