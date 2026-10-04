@@ -1,6 +1,6 @@
 """Import Lambda (nightly): Scryfall's bulk files -> SQLite card file -> S3, then the `latest` pointer.
 
-Downloads `oracle_cards` and `oracle_tags` (JSONL, from Scryfall's bulk catalog; data.scryfall.io has no rate
+Downloads `oracle_cards`, `oracle_tags` and `default_cards` (every printing; JSONL, from Scryfall's bulk catalog; data.scryfall.io has no rate
 limit), builds and checks the database in the temp dir (env `CARDS_TMP_DIR`, default /tmp), gzips it, uploads it
 under a new key and writes `latest` last. A build that fails its check is never uploaded: the old `latest` stays
 and the invocation fails loudly (`ImportRejected`), so the Lambda's error metric shows it.
@@ -87,9 +87,13 @@ def _build_checked_database(work: Path, s3: BaseClient, bucket: str) -> tuple[di
     catalog = get_json(BULK_CATALOG_URL)
     cards_entry = _bulk_entry(catalog, "oracle_cards")
     tags_entry = _bulk_entry(catalog, "oracle_tags")
+    printings_entry = _bulk_entry(catalog, "default_cards")
     download(cards_entry["jsonl_download_uri"], work / "oracle_cards.jsonl.gz")
     download(tags_entry["jsonl_download_uri"], work / "oracle_tags.jsonl.gz")
-    stats = build(work / "oracle_cards.jsonl.gz", work / "oracle_tags.jsonl.gz", work / "cards.sqlite")
+    download(printings_entry["jsonl_download_uri"], work / "default_cards.jsonl.gz")
+    stats = build(
+        work / "oracle_cards.jsonl.gz", work / "oracle_tags.jsonl.gz", work / "cards.sqlite", work / "default_cards.jsonl.gz"
+    )
     _apply_stored_sweep(s3, bucket, work / "cards.sqlite")
     problems = check(work / "cards.sqlite")
     if problems:

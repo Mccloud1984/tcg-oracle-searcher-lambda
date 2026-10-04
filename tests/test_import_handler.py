@@ -13,7 +13,7 @@ import pytest
 from moto import mock_aws
 
 from oracle_searcher.handlers import cards_store, import_handler
-from tests.conftest import CARDS_FIXTURE, TAGS_FIXTURE
+from tests.conftest import CARDS_FIXTURE, PRINTINGS_FIXTURE, TAGS_FIXTURE
 
 if TYPE_CHECKING:
     from pathlib import Path
@@ -22,12 +22,13 @@ BUCKET = "cards-bucket"
 OLD_KEY = "cards/builds/old-build.sqlite.gz"
 CATALOG_URL = "https://api.scryfall.com/bulk-data"
 CARDS_URL = "https://data.scryfall.io/oracle-cards/oracle-cards-20261003210155.jsonl.gz"
+PRINTINGS_URL = "https://data.scryfall.io/default-cards/default-cards-20261003210542.jsonl.gz"
 TAGS_URL = "https://data.scryfall.io/oracle-tags/oracle-tags-20261003210032.jsonl.gz"
 # Shape checked against the live catalog on 2026-10-03 (entries carry more fields; these are the ones the handler reads).
 CATALOG = {
     "data": [
         {"type": "oracle_cards", "updated_at": "2026-10-03T21:01:55.394+00:00", "jsonl_download_uri": CARDS_URL},
-        {"type": "default_cards", "updated_at": "2026-10-03T21:05:42.559+00:00", "jsonl_download_uri": "https://x/default.gz"},
+        {"type": "default_cards", "updated_at": "2026-10-03T21:05:42.559+00:00", "jsonl_download_uri": PRINTINGS_URL},
         {"type": "oracle_tags", "updated_at": "2026-10-03T21:00:32.494+00:00", "jsonl_download_uri": TAGS_URL},
     ]
 }
@@ -46,7 +47,7 @@ def scryfall(monkeypatch: pytest.MonkeyPatch) -> list[str]:
 
     def download(url: str, dest: Path) -> None:
         requested.append(url)
-        source = {CARDS_URL: CARDS_FIXTURE, TAGS_URL: TAGS_FIXTURE}[url]
+        source = {CARDS_URL: CARDS_FIXTURE, TAGS_URL: TAGS_FIXTURE, PRINTINGS_URL: PRINTINGS_FIXTURE}[url]
         with source.open("rb") as src, gzip.open(dest, "wb") as out:
             shutil.copyfileobj(src, out)
 
@@ -79,9 +80,9 @@ def test_publishes_a_passing_build_and_moves_latest(s3, scryfall, monkeypatch: p
     monkeypatch.setattr(import_handler, "check", lambda _path: [])  # the fixtures are far under a full build's card count
     result = import_handler.handler({}, None)
     assert result["key"] == NEW_KEY
-    assert result["card_count"] == 89
+    assert result["card_count"] == 90
     assert _latest(s3) == NEW_KEY
-    assert scryfall == [CATALOG_URL, CARDS_URL, TAGS_URL]  # only oracle_cards and oracle_tags are fetched
+    assert scryfall == [CATALOG_URL, CARDS_URL, TAGS_URL, PRINTINGS_URL]
 
 
 def test_published_file_is_a_gzipped_working_database(s3, scryfall, monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
@@ -89,11 +90,22 @@ def test_published_file_is_a_gzipped_working_database(s3, scryfall, monkeypatch:
     import_handler.handler({}, None)
     cards_store.download_and_gunzip(s3, BUCKET, NEW_KEY, tmp_path / "out.sqlite")
     (count,) = sqlite3.connect(tmp_path / "out.sqlite").execute("SELECT COUNT(*) FROM cards").fetchone()
-    assert count == 89
+    assert count == 90
+
+
+def test_published_build_includes_every_printing(s3, scryfall, monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    """Sol Ring's representative printing is no promo; only the default_cards printings make is:promo true."""
+    monkeypatch.setattr(import_handler, "check", lambda _path: [])
+    import_handler.handler({}, None)
+    cards_store.download_and_gunzip(s3, BUCKET, NEW_KEY, tmp_path / "out.sqlite")
+    (tags,) = (
+        sqlite3.connect(tmp_path / "out.sqlite").execute("SELECT card_is_tags FROM cards WHERE card_name = 'Sol Ring'").fetchone()
+    )
+    assert "promo" in json.loads(tags)
 
 
 def test_failing_check_keeps_the_old_latest_and_uploads_nothing(s3, scryfall) -> None:
-    """The real check rejects the 89-card fixture build (a full file has over 30,000 cards)."""
+    """The real check rejects the 90-card fixture build (a full file has over 30,000 cards)."""
     with pytest.raises(import_handler.ImportRejected, match="cards, expected at least"):
         import_handler.handler({}, None)
     assert _latest(s3) == OLD_KEY
