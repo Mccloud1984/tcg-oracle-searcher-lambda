@@ -1,8 +1,10 @@
 """Search Lambda: answers `{"q", "order", "dir", "page"}` (and the `op` lookups, see `lookups`) from the published card file.
 
 Cold start downloads the build `latest` points at (env `CARDS_BUCKET`) to the temp dir (env `CARDS_TMP_DIR`,
-default /tmp), gunzips it and opens it read-only; later invocations reuse that connection. Never raises: the
-caller (Purroxy) falls back to Scryfall on `unsupported`, `error` or a timeout.
+default /tmp), gunzips it and opens it read-only; later invocations reuse that connection. Right after that, a
+background thread starts fetching the build's printings file, so the first `prints`/id/set lookup finds it already
+local instead of paying the download on top of the cold start. Never raises: the caller (Purroxy) falls back to
+Scryfall on `unsupported`, `error` or a timeout.
 """
 
 from __future__ import annotations
@@ -10,6 +12,7 @@ from __future__ import annotations
 import logging
 import os
 import sqlite3
+import threading
 from pathlib import Path
 from typing import Any
 
@@ -25,6 +28,36 @@ logger = logging.getLogger(__name__)
 _conn: sqlite3.Connection | None = None
 _printings_key: str | None = None  # from the `latest` read at cold start; None for a build with no printings file
 _printings_attached = False
+
+
+class _PrintingsPrefetch:
+    """The printings file downloading on a background thread; `wait` joins it and says whether the file is there.
+
+    Lambda freezes the container between invocations, so the thread only progresses while an invocation runs
+    (the cold start's own, then any later one); a download cut short that way fails or is simply still running,
+    and `wait` covers both. It only writes the file: the ATTACH stays on the calling thread, so the sqlite
+    connection is still used by one thread at a time.
+    """
+
+    def __init__(self, bucket: str, key: str, path: Path) -> None:
+        self.key = key
+        self.path = path
+        self.error: BaseException | None = None
+        self._thread = threading.Thread(target=self._run, args=(bucket,), name="printings-prefetch", daemon=True)
+        self._thread.start()
+
+    def _run(self, bucket: str) -> None:
+        try:
+            cards_store.download_and_gunzip(boto3.client("s3"), bucket, self.key, self.path)
+        except BaseException as exc:  # noqa: BLE001 - reported by `wait`, never raised on a background thread
+            self.error = exc
+
+    def wait(self) -> bool:
+        self._thread.join()
+        return self.error is None
+
+
+_prefetch: _PrintingsPrefetch | None = None
 
 
 class PrintingsUnavailable(Exception):  # noqa: N818 - reads better as a noun at the raise site
@@ -46,8 +79,28 @@ def _open_published_file() -> sqlite3.Connection:
     cards_store.download_and_gunzip(s3, bucket, key, path)
     conn = sqlite3.connect(f"file:{path}?mode=ro", uri=True, check_same_thread=False)
     register_regexp(conn)
+    _start_printings_prefetch(bucket)
     logger.info("loaded %s", key)
     return conn
+
+
+def _printings_path() -> Path:
+    return _tmp_dir() / "printings.sqlite"
+
+
+def _start_printings_prefetch(bucket: str) -> None:
+    global _prefetch  # noqa: PLW0603 - one per container, like the connection
+    if _printings_key is not None:
+        _prefetch = _PrintingsPrefetch(bucket, _printings_key, _printings_path())
+
+
+def _fetch_printings_file(printings_key: str) -> None:
+    """Make sure the printings file is on disk: the background download's result, else one inline download."""
+    if _prefetch is not None and _prefetch.wait():
+        return
+    if _prefetch is not None:
+        logger.warning("background printings download failed (%r); downloading inline", _prefetch.error)
+    cards_store.download_and_gunzip(boto3.client("s3"), os.environ["CARDS_BUCKET"], printings_key, _printings_path())
 
 
 def connection() -> sqlite3.Connection:
@@ -65,21 +118,21 @@ def connection() -> sqlite3.Connection:
 
 
 def printings_connection() -> sqlite3.Connection:
-    """The same connection with the printings file ATTACHed (as `PRINTINGS_ALIAS`), fetched on first need only.
+    """The same connection with the printings file ATTACHed (as `PRINTINGS_ALIAS`), on first need only.
 
-    Searches and card-only lookups never call this, so they keep the cards file's cold start; the printings file
-    (about as big again) is downloaded by the first `prints`, id/set lookup or released-printing swap, then kept
-    for the life of the container (same stale-build limitation as `connection`). Raises `PrintingsUnavailable`
-    when the build `latest` pointed at has no printings file.
+    Searches and card-only lookups never call this, so they never wait for the printings file (about as big again
+    as the cards file); the cold start downloads it in the background and the first `prints`, id/set lookup or
+    released-printing swap joins that thread (if still running) and attaches on its own thread. If the background
+    download failed, it downloads inline once. Kept for the life of the container (same stale-build limitation as
+    `connection`). Raises `PrintingsUnavailable` when the build `latest` pointed at has no printings file.
     """
     global _printings_attached  # noqa: PLW0603
     conn = connection()
     if not _printings_attached:
         if _printings_key is None:
             raise PrintingsUnavailable
-        path = _tmp_dir() / "printings.sqlite"
-        cards_store.download_and_gunzip(boto3.client("s3"), os.environ["CARDS_BUCKET"], _printings_key, path)
-        conn.execute(f"ATTACH DATABASE 'file:{path}?mode=ro' AS {PRINTINGS_ALIAS}")
+        _fetch_printings_file(_printings_key)
+        conn.execute(f"ATTACH DATABASE 'file:{_printings_path()}?mode=ro' AS {PRINTINGS_ALIAS}")
         _printings_attached = True
         logger.info("attached %s", _printings_key)
     return conn
@@ -87,7 +140,10 @@ def printings_connection() -> sqlite3.Connection:
 
 def reset() -> None:
     """Forget the open connection (tests; a real cold start does this by being a new process)."""
-    global _conn, _printings_key, _printings_attached  # noqa: PLW0603
+    global _conn, _printings_key, _printings_attached, _prefetch  # noqa: PLW0603
+    if _prefetch is not None:
+        _prefetch.wait()  # a leftover thread must not write into the next test's temp dir
+    _prefetch = None
     if _conn is not None:
         _conn.close()
     _conn = None

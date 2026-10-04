@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import gzip
 import json
+import threading
+from types import SimpleNamespace
 from typing import TYPE_CHECKING
 
 import boto3
@@ -53,7 +55,7 @@ def s3_printings(s3_cards, tmp_path: Path):
 
 
 def test_search_never_downloads_the_printings_file(s3_printings) -> None:
-    """Searches keep the cards file's cold start: the printings file is fetched on first need only."""
+    """Searches keep the cards file's cold start: the printings file downloads in the background and a search never waits for it."""
     s3_printings.delete_object(Bucket=BUCKET, Key=PRINTINGS_KEY)
     assert search_handler.handler({"q": "name:sol"}, None)["total_cards"] == 1
 
@@ -170,3 +172,79 @@ def test_op_unsupported_query_and_bad_input_follow_the_contract(s3_printings) ->
     assert set(search_handler.handler({"op": "prints", "q": "(("}, None)) == {"error"}
     assert set(search_handler.handler({"op": "named"}, None)) == {"error"}
     assert set(search_handler.handler({"op": "collection", "identifiers": [{"name": "x"}] * 76}, None)) == {"unsupported"}
+
+
+# The printings file downloads in the background from the cold start, so a later `prints` finds it already local.
+
+
+@pytest.fixture
+def printings_downloads(monkeypatch: pytest.MonkeyPatch):
+    """Wrap the S3 download: records each printings-file fetch (with its thread) and can hold or fail the first one."""
+    real = search_handler.cards_store.download_and_gunzip
+    fetches: list[str] = []  # names of the threads that fetched the printings file, in order
+    gate = SimpleNamespace(started=threading.Event(), release=threading.Event(), fail_first=False)
+    gate.release.set()
+
+    def fake(s3, bucket, key, dest) -> None:
+        if key == PRINTINGS_KEY:
+            fetches.append(threading.current_thread().name)
+            gate.started.set()
+            assert gate.release.wait(10)
+            if gate.fail_first and len(fetches) == 1:
+                msg = "boom"
+                raise OSError(msg)
+        real(s3, bucket, key, dest)
+
+    monkeypatch.setattr(search_handler.cards_store, "download_and_gunzip", fake)
+    yield SimpleNamespace(fetches=fetches, gate=gate)
+    gate.release.set()
+
+
+def test_cold_start_downloads_printings_in_the_background_without_blocking_search(s3_printings, printings_downloads) -> None:
+    """Regression: the first `prints` paid the ~2 s printings download on top of the cold start. Searches must not wait for it."""
+    printings_downloads.gate.release.clear()
+    assert search_handler.handler({"q": "name:sol"}, None)["total_cards"] == 1  # returns while the download is held
+    assert printings_downloads.gate.started.wait(5), "cold start did not start the printings download"
+    assert printings_downloads.fetches != ["MainThread"]
+    assert printings_downloads.fetches[0] != threading.main_thread().name
+
+
+def test_printings_connection_uses_the_background_download(s3_printings, printings_downloads) -> None:
+    search_handler.handler({"q": "name:sol"}, None)
+    conn = search_handler.printings_connection()
+    (count,) = conn.execute("SELECT COUNT(*) FROM pr.printings").fetchone()
+    assert count > 600
+    assert len(printings_downloads.fetches) == 1  # the background one only
+    assert printings_downloads.fetches != [threading.main_thread().name]
+
+
+def test_printings_connection_waits_for_a_background_download_still_running(s3_printings, printings_downloads) -> None:
+    printings_downloads.gate.release.clear()
+    search_handler.handler({"q": "name:sol"}, None)
+    assert printings_downloads.gate.started.wait(5)
+    threading.Timer(0.3, printings_downloads.gate.release.set).start()
+    (count,) = search_handler.printings_connection().execute("SELECT COUNT(*) FROM pr.printings").fetchone()
+    assert count > 600
+    assert len(printings_downloads.fetches) == 1
+
+
+def test_failed_background_download_falls_back_to_one_inline_download(s3_printings, printings_downloads) -> None:
+    printings_downloads.gate.fail_first = True
+    search_handler.handler({"q": "name:sol"}, None)
+    (count,) = search_handler.printings_connection().execute("SELECT COUNT(*) FROM pr.printings").fetchone()
+    assert count > 600
+    assert len(printings_downloads.fetches) == 2
+    assert printings_downloads.fetches[1] == threading.main_thread().name  # the retry ran on the calling thread
+
+
+def test_build_without_a_printings_key_starts_no_download(s3_cards, printings_downloads) -> None:
+    search_handler.handler({"q": "name:sol"}, None)
+    assert printings_downloads.fetches == []
+
+
+def test_reset_forgets_the_background_download(s3_printings, printings_downloads) -> None:
+    search_handler.handler({"q": "name:sol"}, None)
+    search_handler.reset()
+    search_handler.handler({"q": "name:sol"}, None)
+    search_handler.printings_connection()
+    assert len(printings_downloads.fetches) == 2  # one per cold start

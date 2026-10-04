@@ -2,7 +2,7 @@
 
 Layout (one bucket, `CARDS_BUCKET`): `cards/builds/<build>.sqlite.gz` holds a build (a lifecycle rule can expire the
 whole `cards/builds/` prefix), next to `cards/builds/<build>.printings.sqlite.gz` (the printings, a second file the
-search Lambda only fetches when an op needs them). `cards/latest.json`
+search Lambda fetches in the background after its cold start). `cards/latest.json`
 (`{"key": "<cards key>", "printings_key": "<printings key>"}`) points at the pair to serve; an older build's
 `latest` names only `key`. The import writes `latest` last.
 `sweeps/is_tags.json` (`{"swept_at", "tags": {tag: [oracle_id]}}`) is the weekly `is:` tag sweep; the sweep Lambda writes it, the import applies it.
