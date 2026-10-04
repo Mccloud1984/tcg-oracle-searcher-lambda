@@ -16,11 +16,18 @@ from typing import Any
 import boto3
 
 from oracle_searcher.handlers import cards_store
+from oracle_searcher.schema import PRINTINGS_ALIAS
 from oracle_searcher.search import Unsupported, register_regexp, search
 
 logger = logging.getLogger(__name__)
 
 _conn: sqlite3.Connection | None = None
+_printings_key: str | None = None  # from the `latest` read at cold start; None for a build with no printings file
+_printings_attached = False
+
+
+class PrintingsUnavailable(Exception):  # noqa: N818 - reads better as a noun at the raise site
+    """The served build has no printings file (it predates it), so ops that need printings can't be answered."""
 
 
 def _tmp_dir() -> Path:
@@ -30,7 +37,10 @@ def _tmp_dir() -> Path:
 def _open_published_file() -> sqlite3.Connection:
     bucket = os.environ["CARDS_BUCKET"]
     s3 = boto3.client("s3")
-    key = cards_store.read_latest_key(s3, bucket)
+    latest = cards_store.read_latest(s3, bucket)
+    key = latest["key"]
+    global _printings_key  # noqa: PLW0603 - set with the connection, so both belong to the same build
+    _printings_key = latest.get("printings_key")
     path = _tmp_dir() / "cards.sqlite"
     cards_store.download_and_gunzip(s3, bucket, key, path)
     conn = sqlite3.connect(f"file:{path}?mode=ro", uri=True, check_same_thread=False)
@@ -53,12 +63,35 @@ def connection() -> sqlite3.Connection:
     return _conn
 
 
+def printings_connection() -> sqlite3.Connection:
+    """The same connection with the printings file ATTACHed (as `PRINTINGS_ALIAS`), fetched on first need only.
+
+    Searches and card-only lookups never call this, so they keep the cards file's cold start; the printings file
+    (about as big again) is downloaded by the first `prints`, id/set lookup or released-printing swap, then kept
+    for the life of the container (same stale-build limitation as `connection`). Raises `PrintingsUnavailable`
+    when the build `latest` pointed at has no printings file.
+    """
+    global _printings_attached  # noqa: PLW0603
+    conn = connection()
+    if not _printings_attached:
+        if _printings_key is None:
+            raise PrintingsUnavailable
+        path = _tmp_dir() / "printings.sqlite"
+        cards_store.download_and_gunzip(boto3.client("s3"), os.environ["CARDS_BUCKET"], _printings_key, path)
+        conn.execute(f"ATTACH DATABASE 'file:{path}?mode=ro' AS {PRINTINGS_ALIAS}")
+        _printings_attached = True
+        logger.info("attached %s", _printings_key)
+    return conn
+
+
 def reset() -> None:
     """Forget the open connection (tests; a real cold start does this by being a new process)."""
-    global _conn  # noqa: PLW0603
+    global _conn, _printings_key, _printings_attached  # noqa: PLW0603
     if _conn is not None:
         _conn.close()
     _conn = None
+    _printings_key = None
+    _printings_attached = False
 
 
 def handler(event: dict[str, Any], context: object) -> dict[str, Any]:  # noqa: ARG001

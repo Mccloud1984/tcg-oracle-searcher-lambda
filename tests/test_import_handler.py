@@ -33,6 +33,7 @@ CATALOG = {
     ]
 }
 NEW_KEY = "cards/builds/20261003210155.sqlite.gz"
+NEW_PRINTINGS_KEY = "cards/builds/20261003210155.printings.sqlite.gz"
 
 
 @pytest.fixture
@@ -93,6 +94,23 @@ def test_published_file_is_a_gzipped_working_database(s3, scryfall, monkeypatch:
     assert count == 92
 
 
+def test_publishes_the_printings_file_and_latest_names_both(s3, scryfall, monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    """Printings are a second published file; `latest` names it next to the cards key (and still `key` for old readers)."""
+    monkeypatch.setattr(import_handler, "check", lambda _path: [])
+    result = import_handler.handler({}, None)
+    assert result["printings_key"] == NEW_PRINTINGS_KEY
+    assert cards_store.read_latest(s3, BUCKET) == {"key": NEW_KEY, "printings_key": NEW_PRINTINGS_KEY}
+    cards_store.download_and_gunzip(s3, BUCKET, NEW_PRINTINGS_KEY, tmp_path / "p.sqlite")
+    (count,) = sqlite3.connect(tmp_path / "p.sqlite").execute("SELECT COUNT(*) FROM printings").fetchone()
+    assert count == result["printing_count"] > 600
+
+
+def test_old_latest_naming_only_cards_still_reads(s3) -> None:
+    """Back-compat: a `latest` written before the printings file has only `key`."""
+    assert cards_store.read_latest(s3, BUCKET) == {"key": OLD_KEY}
+    assert cards_store.read_latest_key(s3, BUCKET) == OLD_KEY
+
+
 def test_published_build_includes_every_printing(s3, scryfall, monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
     """Sol Ring's representative printing is no promo; only the default_cards printings make is:promo true."""
     monkeypatch.setattr(import_handler, "check", lambda _path: [])
@@ -118,10 +136,11 @@ def test_latest_moves_only_after_the_build_is_uploaded(s3, scryfall, monkeypatch
     seen: list[str] = []
     real_write = cards_store.write_latest_key
 
-    def write_latest(client, bucket, key) -> None:
+    def write_latest(client, bucket, key, printings_key=None) -> None:
         client.head_object(Bucket=bucket, Key=key)  # raises if the build isn't uploaded yet
+        client.head_object(Bucket=bucket, Key=printings_key)
         seen.append(key)
-        real_write(client, bucket, key)
+        real_write(client, bucket, key, printings_key)
 
     monkeypatch.setattr(cards_store, "write_latest_key", write_latest)
     import_handler.handler({}, None)

@@ -11,6 +11,8 @@ import pytest
 from moto import mock_aws
 
 from oracle_searcher.handlers import search_handler
+from oracle_searcher.importer import build
+from tests.conftest import CARDS_FIXTURE, PRINTINGS_FIXTURE, TAGS_FIXTURE
 
 if TYPE_CHECKING:
     from pathlib import Path
@@ -35,6 +37,45 @@ def s3_cards(built_db_path: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatc
         s3.put_object(Bucket=BUCKET, Key="cards/latest.json", Body=json.dumps({"key": BUILD_KEY}))
         yield s3
     search_handler.reset()
+
+
+PRINTINGS_KEY = "cards/builds/20261003.printings.sqlite.gz"
+
+
+@pytest.fixture
+def s3_printings(s3_cards, tmp_path: Path):
+    """The same bucket plus a printings file built from the fixtures, `latest` naming both."""
+    printings_db = tmp_path / "printings.sqlite"
+    build(CARDS_FIXTURE, TAGS_FIXTURE, tmp_path / "unused.sqlite", PRINTINGS_FIXTURE, printings_db)
+    s3_cards.put_object(Bucket=BUCKET, Key=PRINTINGS_KEY, Body=gzip.compress(printings_db.read_bytes()))
+    s3_cards.put_object(Bucket=BUCKET, Key="cards/latest.json", Body=json.dumps({"key": BUILD_KEY, "printings_key": PRINTINGS_KEY}))
+    return s3_cards
+
+
+def test_search_never_downloads_the_printings_file(s3_printings) -> None:
+    """Searches keep the cards file's cold start: the printings file is fetched on first need only."""
+    s3_printings.delete_object(Bucket=BUCKET, Key=PRINTINGS_KEY)
+    assert search_handler.handler({"q": "name:sol"}, None)["total_cards"] == 1
+
+
+def test_printings_connection_attaches_the_second_file_once(s3_printings) -> None:
+    conn = search_handler.printings_connection()
+    (count,) = conn.execute("SELECT COUNT(*) FROM pr.printings").fetchone()
+    assert count > 600
+    s3_printings.delete_object(Bucket=BUCKET, Key=PRINTINGS_KEY)
+    assert search_handler.printings_connection() is conn  # no second download or attach
+
+
+def test_printings_file_is_read_only(s3_printings) -> None:
+    with pytest.raises(Exception, match="readonly"):
+        search_handler.printings_connection().execute("DELETE FROM pr.printings")
+
+
+def test_build_without_a_printings_file_says_so(s3_cards) -> None:
+    """A `latest` from before the printings file names only the cards file; cards-only ops keep working."""
+    with pytest.raises(search_handler.PrintingsUnavailable):
+        search_handler.printings_connection()
+    assert search_handler.handler({"q": "name:sol"}, None)["total_cards"] == 1
 
 
 def test_answers_a_query_from_the_published_file(s3_cards) -> None:

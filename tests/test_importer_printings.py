@@ -21,6 +21,7 @@ from oracle_searcher.importer import (
     merge_overlay,
     printing_card,
 )
+from oracle_searcher.schema import PRINTINGS_ALIAS, PRINTINGS_SCHEMA_VERSION
 from tests.conftest import CARDS_FIXTURE, PRINTINGS_FIXTURE, TAGS_FIXTURE, card_row
 
 if TYPE_CHECKING:
@@ -30,10 +31,14 @@ PRINTING_ONLY_COLUMNS = {"card_is_tags", "is_extra"}
 
 
 def _build(tmp_path: Path, name: str, printings: Path | None) -> sqlite3.Connection:
+    """The cards file; with `printings`, the printings file is built next to it and ATTACHed as the handler does."""
     out = tmp_path / f"{name}.sqlite"
-    build(CARDS_FIXTURE, TAGS_FIXTURE, out, printings_path=printings)
+    printings_out = tmp_path / f"{name}.printings.sqlite" if printings else None
+    build(CARDS_FIXTURE, TAGS_FIXTURE, out, printings_path=printings, printings_out_path=printings_out)
     conn = sqlite3.connect(out)
     conn.row_factory = sqlite3.Row
+    if printings_out:
+        conn.execute(f"ATTACH DATABASE '{printings_out}' AS {PRINTINGS_ALIAS}")
     return conn
 
 
@@ -117,10 +122,24 @@ def test_alchemy_card_legal_nowhere_is_hidden(full: sqlite3.Connection) -> None:
     assert card_row(full, "Skanos, Green Dragon Vassal")["is_extra"] == 1
 
 
-def test_printings_table_exists(full: sqlite3.Connection) -> None:
-    """The printings table is created by build()."""
-    tables = full.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='printings'").fetchall()
-    assert len(tables) == 1
+def test_printings_table_is_in_the_second_file_not_the_cards_file(full: sqlite3.Connection) -> None:
+    """The printings table made the cards file 345 MB (limit 512 MB /tmp); it lives in its own file now."""
+    in_cards = full.execute("SELECT name FROM main.sqlite_master WHERE name = 'printings'").fetchall()
+    in_printings = full.execute(f"SELECT name FROM {PRINTINGS_ALIAS}.sqlite_master WHERE name = 'printings'").fetchall()
+    assert (len(in_cards), len(in_printings)) == (0, 1)
+
+
+def test_printings_file_has_its_own_schema_version(full: sqlite3.Connection) -> None:
+    (version,) = full.execute(f"SELECT value FROM {PRINTINGS_ALIAS}.meta WHERE key = 'printings_schema_version'").fetchone()
+    assert version == str(PRINTINGS_SCHEMA_VERSION)
+    (cards_version,) = full.execute("SELECT value FROM main.meta WHERE key = 'schema_version'").fetchone()
+    assert cards_version == "3"
+
+
+def test_build_without_printings_out_writes_no_printings_file(tmp_path: Path) -> None:
+    stats = build(CARDS_FIXTURE, TAGS_FIXTURE, tmp_path / "c.sqlite", printings_path=PRINTINGS_FIXTURE)
+    assert list(tmp_path.iterdir()) == [tmp_path / "c.sqlite"]
+    assert stats["printing_count"] == 0
 
 
 def test_printings_table_has_required_columns(full: sqlite3.Connection) -> None:
@@ -132,7 +151,10 @@ def test_printings_table_has_required_columns(full: sqlite3.Connection) -> None:
 
 def test_printings_table_has_indexes(full: sqlite3.Connection) -> None:
     """The printings table has the required indexes."""
-    indexes = {r["name"] for r in full.execute("SELECT name FROM sqlite_master WHERE type='index' AND tbl_name='printings'")}
+    indexes = {
+        r["name"]
+        for r in full.execute(f"SELECT name FROM {PRINTINGS_ALIAS}.sqlite_master WHERE type='index' AND tbl_name='printings'")
+    }
     assert "printings_oracle_id" in indexes
     assert "printings_set_collector" in indexes
 

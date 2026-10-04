@@ -65,9 +65,10 @@ def _bulk_entry(catalog: dict[str, Any], bulk_type: str) -> dict[str, Any]:
     raise KeyError(bulk_type)
 
 
-def _build_key(cards_entry: dict[str, Any]) -> str:
-    """`cards/builds/<digits of the oracle_cards updated_at>.sqlite.gz`, so one Scryfall export maps to one key."""
-    return f"{cards_store.BUILDS_PREFIX}{re.sub(r'\D', '', cards_entry['updated_at'])[:14]}.sqlite.gz"
+def _build_keys(cards_entry: dict[str, Any]) -> tuple[str, str]:
+    """`cards/builds/<digits of the oracle_cards updated_at>[.printings].sqlite.gz`: one Scryfall export, one key pair."""
+    stamp = re.sub(r"\D", "", cards_entry["updated_at"])[:14]
+    return f"{cards_store.BUILDS_PREFIX}{stamp}.sqlite.gz", f"{cards_store.BUILDS_PREFIX}{stamp}.printings.sqlite.gz"
 
 
 def _apply_stored_sweep(s3: BaseClient, bucket: str, database: Path) -> None:
@@ -92,7 +93,11 @@ def _build_checked_database(work: Path, s3: BaseClient, bucket: str) -> tuple[di
     download(tags_entry["jsonl_download_uri"], work / "oracle_tags.jsonl.gz")
     download(printings_entry["jsonl_download_uri"], work / "default_cards.jsonl.gz")
     stats = build(
-        work / "oracle_cards.jsonl.gz", work / "oracle_tags.jsonl.gz", work / "cards.sqlite", work / "default_cards.jsonl.gz"
+        work / "oracle_cards.jsonl.gz",
+        work / "oracle_tags.jsonl.gz",
+        work / "cards.sqlite",
+        work / "default_cards.jsonl.gz",
+        work / "printings.sqlite",
     )
     _apply_stored_sweep(s3, bucket, work / "cards.sqlite")
     problems = check(work / "cards.sqlite")
@@ -110,9 +115,10 @@ def handler(event: dict[str, Any], context: object) -> dict[str, Any]:  # noqa: 
         work = Path(work_name)
         s3 = boto3.client("s3")
         cards_entry, stats = _build_checked_database(work, s3, bucket)
-        key = _build_key(cards_entry)
-        cards_store.gzip_file(work / "cards.sqlite", work / "cards.sqlite.gz")
-        s3.upload_file(str(work / "cards.sqlite.gz"), bucket, key)
-        cards_store.write_latest_key(s3, bucket, key)  # last: the old build serves until the new one is whole
-    logger.info("published %s: %s", key, stats)
-    return {"key": key, **stats}
+        key, printings_key = _build_keys(cards_entry)
+        for name, upload_key in (("cards", key), ("printings", printings_key)):
+            cards_store.gzip_file(work / f"{name}.sqlite", work / f"{name}.sqlite.gz")
+            s3.upload_file(str(work / f"{name}.sqlite.gz"), bucket, upload_key)
+        cards_store.write_latest_key(s3, bucket, key, printings_key)  # last: the old pair serves until the new one is whole
+    logger.info("published %s and %s: %s", key, printings_key, stats)
+    return {"key": key, "printings_key": printings_key, **stats}

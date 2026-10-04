@@ -6,9 +6,14 @@ Tables:
   parser's attribute names map one to one.
 - `card_faces`: one row per face of multi-face cards.
 - `meta`: schema version and build metadata.
-- `printings` (v3+): one row per printing (the `default_cards` bulk file). Contains id (Scryfall printing id),
-  oracle_id (links to cards.oracle_id), set_code, collector_number, released_at, set_type, games (JSON array),
-  and card_json (trimmed Scryfall printing object). Indexed on oracle_id and (set_code, collector_number).
+
+The printings live in a second file (`PRINTINGS_DDL`), so a search never pays for them: 345 MB with printings in the
+cards file against 169 MB without (measured 2026-10-04, close to the Lambda's 512 MB /tmp). The search Lambda
+ATTACHes it as `PRINTINGS_ALIAS` on the first op that needs it. Its `printings` table has one row per printing (the
+`default_cards` bulk file): id (Scryfall printing id), oracle_id (links to cards.oracle_id), set_code,
+collector_number, released_at, set_type, games (JSON array) and card_json (the printing as an overlay on its oracle
+card's card_json, see importer.merge_overlay). Indexed on oracle_id and (set_code, collector_number). Its own `meta`
+table carries `printings_schema_version`.
 
 Value conventions:
 - Colour masks: W=1, U=2, B=4, R=8, G=16; `produced_mana` also uses C=32. Colourless is 0.
@@ -30,7 +35,9 @@ Value conventions:
 
 import sqlite3
 
-SCHEMA_VERSION = 3
+SCHEMA_VERSION = 3  # the cards file; the printings file has its own PRINTINGS_SCHEMA_VERSION
+PRINTINGS_SCHEMA_VERSION = 1
+PRINTINGS_ALIAS = "pr"  # the schema name the printings file is ATTACHed under
 
 COLOR_BITS = {"W": 1, "U": 2, "B": 4, "R": 8, "G": 16, "C": 32}
 
@@ -100,6 +107,27 @@ CREATE TABLE meta (
     value TEXT NOT NULL   -- schema_version, source_updated_at, built_at, card_count
 );
 
+CREATE INDEX cards_name ON cards(card_name_folded);
+CREATE INDEX cards_edhrec ON cards(edhrec_rank);
+CREATE INDEX cards_released ON cards(released_at);
+CREATE INDEX cards_cmc ON cards(cmc);
+CREATE INDEX cards_usd ON cards(price_usd);
+CREATE INDEX cards_identity ON cards(card_color_identity);
+"""
+
+
+def create_schema(conn: sqlite3.Connection) -> None:
+    """Creates every table and index on an empty database, and records the schema version."""
+    conn.executescript(DDL)
+    conn.execute("INSERT INTO meta(key, value) VALUES ('schema_version', ?)", (str(SCHEMA_VERSION),))
+
+
+PRINTINGS_DDL = """
+CREATE TABLE meta (
+    key   TEXT PRIMARY KEY,
+    value TEXT NOT NULL   -- printings_schema_version, built_at, printing_count
+);
+
 CREATE TABLE printings (
     id                    TEXT PRIMARY KEY,
     oracle_id             TEXT NOT NULL,
@@ -111,18 +139,12 @@ CREATE TABLE printings (
     card_json             TEXT NOT NULL         -- trimmed Scryfall printing object
 );
 
-CREATE INDEX cards_name ON cards(card_name_folded);
-CREATE INDEX cards_edhrec ON cards(edhrec_rank);
-CREATE INDEX cards_released ON cards(released_at);
-CREATE INDEX cards_cmc ON cards(cmc);
-CREATE INDEX cards_usd ON cards(price_usd);
-CREATE INDEX cards_identity ON cards(card_color_identity);
 CREATE INDEX printings_oracle_id ON printings(oracle_id);
 CREATE INDEX printings_set_collector ON printings(set_code, collector_number);
 """
 
 
-def create_schema(conn: sqlite3.Connection) -> None:
-    """Creates every table and index on an empty database, and records the schema version."""
-    conn.executescript(DDL)
-    conn.execute("INSERT INTO meta(key, value) VALUES ('schema_version', ?)", (str(SCHEMA_VERSION),))
+def create_printings_schema(conn: sqlite3.Connection) -> None:
+    """Creates the printings table, its indexes and meta on an empty database (the second file)."""
+    conn.executescript(PRINTINGS_DDL)
+    conn.execute("INSERT INTO meta(key, value) VALUES ('printings_schema_version', ?)", (str(PRINTINGS_SCHEMA_VERSION),))

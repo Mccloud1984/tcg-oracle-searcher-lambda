@@ -33,7 +33,7 @@ from api.card_processing import (
     rarity_text_to_int,
 )
 from api.parsing.card_query_nodes import calculate_devotion, fold_accents, mana_cost_str_to_dict
-from oracle_searcher.schema import COLOR_BITS, create_schema
+from oracle_searcher.schema import COLOR_BITS, create_printings_schema, create_schema
 
 if TYPE_CHECKING:
     from collections.abc import Iterable, Iterator
@@ -780,47 +780,71 @@ _PRINTING_COLUMNS = [
     "games",
     "card_json",
 ]
+_PRINTING_BATCH_SIZE = 1000
 _PRINTING_INSERT_SQL = (
     f"INSERT INTO printings ({', '.join(_PRINTING_COLUMNS)}) VALUES ({', '.join('?' for _ in _PRINTING_COLUMNS)})"
 )
 
 
-def _insert_printings_with_overlays(conn: sqlite3.Connection, printings_path: str | Path) -> tuple[int, int]:
-    """Stream printings and insert with overlays, batching inserts.
+def _flush(conn: sqlite3.Connection, batch: list[dict[str, Any]]) -> int:
+    conn.executemany(_PRINTING_INSERT_SQL, [[r[c] for c in _PRINTING_COLUMNS] for r in batch])
+    return len(batch)
+
+
+def _insert_printings_with_overlays(
+    cards_conn: sqlite3.Connection, printings_conn: sqlite3.Connection, printings_path: str | Path
+) -> tuple[int, int]:
+    """Stream printings into `printings_conn` as overlays on their oracle cards (read from `cards_conn`), in batches.
 
     Returns (printing_count, printing_skipped_count).
     """
-    batch_size = 1000
     batch: list[dict[str, Any]] = []
     printing_count = 0
     printing_skipped_count = 0
-
     for printing in _open_jsonl(printings_path):
         oracle_id = _get_oracle_id_from_printing(printing)
-        if not oracle_id:
-            printing_skipped_count += 1
-            continue
-
         # One indexed read per printing; nothing is kept between printings, so memory stays flat.
-        card_row = conn.execute("SELECT card_json FROM cards WHERE oracle_id = ?", (oracle_id,)).fetchone()
-        if not card_row:
+        card_row = cards_conn.execute("SELECT card_json FROM cards WHERE oracle_id = ?", (oracle_id,)).fetchone()
+        row = _build_printing_row(printing, json.loads(card_row[0])) if card_row else None
+        if row is None:
             printing_skipped_count += 1
             continue
-        oracle_card_trimmed = json.loads(card_row[0])
-        row = _build_printing_row(printing, oracle_card_trimmed)
-        if row:
-            batch.append(row)
-            if len(batch) >= batch_size:
-                conn.executemany(_PRINTING_INSERT_SQL, [[r[c] for c in _PRINTING_COLUMNS] for r in batch])
-                printing_count += len(batch)
-                batch = []
-
-    # Insert remaining batch
+        batch.append(row)
+        if len(batch) >= _PRINTING_BATCH_SIZE:
+            printing_count += _flush(printings_conn, batch)
+            batch = []
     if batch:
-        conn.executemany(_PRINTING_INSERT_SQL, [[r[c] for c in _PRINTING_COLUMNS] for r in batch])
-        printing_count += len(batch)
-
+        printing_count += _flush(printings_conn, batch)
     return printing_count, printing_skipped_count
+
+
+def build_printings(cards_db_path: str | Path, printings_path: str | Path, out_path: str | Path) -> tuple[int, int]:
+    """Write the printings file at `out_path` from a finished cards file and the default_cards bulk file.
+
+    Atomic like `build` (tmp file renamed into place). Returns (printing_count, printing_skipped_count).
+    """
+    out_path = Path(out_path)
+    tmp_path = out_path.with_name(out_path.name + ".tmp")
+    tmp_path.unlink(missing_ok=True)
+    try:
+        cards_conn = sqlite3.connect(f"file:{cards_db_path}?mode=ro", uri=True)
+        printings_conn = sqlite3.connect(tmp_path)
+        try:
+            create_printings_schema(printings_conn)
+            counts = _insert_printings_with_overlays(cards_conn, printings_conn, printings_path)
+            printings_conn.execute(
+                "INSERT INTO meta(key, value) VALUES ('printing_count', ?), ('built_at', ?)",
+                (str(counts[0]), time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())),
+            )
+            printings_conn.commit()
+        finally:
+            printings_conn.close()
+            cards_conn.close()
+        tmp_path.rename(out_path)
+    except BaseException:
+        tmp_path.unlink(missing_ok=True)
+        raise
+    return counts
 
 
 def build(
@@ -828,18 +852,17 @@ def build(
     tags_path: str | Path,
     out_path: str | Path,
     printings_path: str | Path | None = None,
+    printings_out_path: str | Path | None = None,
 ) -> dict[str, Any]:
     """Build the SQLite card file at `out_path` from the two bulk JSONL files.
 
     Writes to `out_path` + ".tmp" and renames it into place at the end, so a build that raises
     partway through never leaves a half-written file at `out_path`.
 
-    With `printings_path` (default_cards):
-    1. First streaming pass: summarize printings (union of printing-level tags, visibility).
-    2. After cards are inserted: second streaming pass to insert printings with overlay card_json.
-    3. Overlays contain only keys differing from the oracle card, reducing file size.
-
-    Without printings_path, only the representative printing counts.
+    With `printings_path` (default_cards) a first streaming pass summarizes the printings (union of printing-level
+    tags, visibility) into the card rows. With `printings_out_path` too, a second streaming pass then writes the
+    separate printings file (`build_printings`), once the cards file is in place. Without `printings_path`, only the
+    representative printing counts.
 
     Returns a stats dict including card_count, face_count, tagged_card_count, printing_count,
     printing_skipped_count, duration_seconds.
@@ -871,10 +894,6 @@ def build(
                 card_count += 1
                 face_count += len(face_rows)
 
-            # Second pass: stream printings and insert with overlays
-            if printings_path:
-                printing_count, printing_skipped_count = _insert_printings_with_overlays(conn, printings_path)
-
             conn.execute(
                 "INSERT INTO meta(key, value) VALUES ('card_count', ?), ('built_at', ?)",
                 (str(card_count), time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())),
@@ -886,6 +905,8 @@ def build(
     except BaseException:
         tmp_path.unlink(missing_ok=True)
         raise
+    if printings_path and printings_out_path:
+        printing_count, printing_skipped_count = build_printings(out_path, printings_path, printings_out_path)
 
     return {
         "card_count": card_count,
@@ -949,9 +970,10 @@ def main() -> None:
     parser.add_argument("--tags", required=True, help="path to oracle_tags.jsonl(.gz)")
     parser.add_argument("--printings", help="path to default_cards.jsonl(.gz); optional")
     parser.add_argument("--out", required=True, help="path to write the SQLite card file to")
+    parser.add_argument("--printings-out", help="path to write the printings SQLite file to (needs --printings)")
     args = parser.parse_args()
 
-    stats = build(args.cards, args.tags, args.out, args.printings)
+    stats = build(args.cards, args.tags, args.out, args.printings, args.printings_out)
     logger.info("Built %s: %s", args.out, stats)
 
     problems = check(args.out)
