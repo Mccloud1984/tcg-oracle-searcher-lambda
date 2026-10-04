@@ -13,7 +13,14 @@ from typing import TYPE_CHECKING
 
 import pytest
 
-from oracle_searcher.importer import build, printing_card
+from oracle_searcher.importer import (
+    _get_oracle_id_from_printing,
+    _trim_card_json,
+    _trim_card_json_overlay,
+    build,
+    merge_overlay,
+    printing_card,
+)
 from tests.conftest import CARDS_FIXTURE, PRINTINGS_FIXTURE, TAGS_FIXTURE, card_row
 
 if TYPE_CHECKING:
@@ -203,3 +210,24 @@ def test_printing_overlay_is_smaller_than_full_json(full: sqlite3.Connection) ->
     assert avg_overlay < avg_full, f"Overlay {avg_overlay} should be < full {avg_full}"
     # Typically overlays should be much smaller (10-50% of full)
     assert avg_overlay < avg_full * 0.5, "Overlay should be <50% of full size"
+
+
+def test_every_fixture_printing_round_trips_through_its_overlay():
+    """Regression: a key the oracle card has but a printing lacks leaked into the merged printing.
+
+    The first overlay only stored keys that differ, so a preview date, all_parts and so on came back from the card.
+    Every fixture printing lacks some of its card's keys.
+    """
+    oracle = {}
+    for line in CARDS_FIXTURE.read_text().splitlines():
+        card = json.loads(line)
+        oracle[card["oracle_id"]] = _trim_card_json(card)
+    checked = 0
+    for line in PRINTINGS_FIXTURE.read_text().splitlines():
+        printing = json.loads(line)
+        card = oracle.get(_get_oracle_id_from_printing(printing))
+        if card is None:
+            continue
+        assert merge_overlay(card, _trim_card_json_overlay(printing, card)) == _trim_card_json(printing), printing["id"]
+        checked += 1
+    assert checked > 600

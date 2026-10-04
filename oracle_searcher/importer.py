@@ -486,54 +486,37 @@ def _trim_card_json(card: dict[str, Any]) -> dict[str, Any]:
     return trimmed
 
 
-def _trim_card_json_overlay(printing: dict[str, Any], oracle_card_trimmed: dict[str, Any]) -> dict[str, Any]:
-    """Build an overlay: only the keys where printing differs from oracle_card.
+_ABSENT_KEY = "_absent"  # overlay key listing the card's keys this printing doesn't have
 
-    The overlay + oracle_card_trimmed merged together reconstructs the full trimmed printing.
-    Card_faces: stored whole if any face differs from oracle_card's faces, otherwise omitted.
+
+def _trim_card_json_overlay(printing: dict[str, Any], oracle_card_trimmed: dict[str, Any]) -> dict[str, Any]:
+    """The printing's trimmed JSON as an overlay on its oracle card's.
+
+    Only the keys whose value differs are kept (a list such as `card_faces` is stored whole when any part differs),
+    plus `_absent` naming the card's keys the printing lacks. `merge_overlay` reverses it.
     """
     printing_trimmed = _trim_card_json(printing)
-    overlay: dict[str, Any] = {}
-
-    # Check each key in printing_trimmed
-    for key, value in printing_trimmed.items():
-        oracle_value = oracle_card_trimmed.get(key)
-        if key == "card_faces":
-            # Special handling for card_faces: store whole list if different
-            if value != oracle_value:
-                overlay[key] = value
-        elif value != oracle_value:
-            overlay[key] = value
-
+    overlay = {key: value for key, value in printing_trimmed.items() if oracle_card_trimmed.get(key, _ABSENT_KEY) != value}
+    if absent := sorted(oracle_card_trimmed.keys() - printing_trimmed.keys()):
+        overlay[_ABSENT_KEY] = absent
     return overlay
 
 
-def printing_card(conn: sqlite3.Connection, printing_id: str) -> dict[str, Any]:
-    """Reconstruct a full printing's trimmed card JSON by merging its overlay with the oracle card.
+def merge_overlay(oracle_card_trimmed: dict[str, Any], overlay: dict[str, Any]) -> dict[str, Any]:
+    """A printing's trimmed JSON from its oracle card's and its overlay (see `_trim_card_json_overlay`)."""
+    absent = set(overlay.get(_ABSENT_KEY, ()))
+    merged = {key: value for key, value in oracle_card_trimmed.items() if key not in absent}
+    merged.update((key, value) for key, value in overlay.items() if key != _ABSENT_KEY)
+    return merged
 
-    Reads from the database: the printing's overlay and the oracle card's card_json.
-    Returns the merged dict as if _trim_card_json(printing) had been stored directly.
-    """
+
+def printing_card(conn: sqlite3.Connection, printing_id: str) -> dict[str, Any] | None:
+    """One printing's full trimmed card JSON, or None when there is no such printing."""
     row = conn.execute(
-        """
-        SELECT p.card_json as overlay_json, c.card_json as oracle_json
-        FROM printings p
-        JOIN cards c ON p.oracle_id = c.oracle_id
-        WHERE p.id = ?
-        """,
+        "SELECT c.card_json, p.card_json FROM printings p JOIN cards c ON p.oracle_id = c.oracle_id WHERE p.id = ?",
         (printing_id,),
     ).fetchone()
-    if not row:
-        msg = f"Printing {printing_id} not found"
-        raise ValueError(msg)
-
-    oracle_card = json.loads(row["oracle_json"])
-    overlay = json.loads(row["overlay_json"])
-
-    # Merge: start with oracle card and apply overlay
-    result = oracle_card.copy()
-    result.update(overlay)
-    return result
+    return merge_overlay(json.loads(row[0]), json.loads(row[1])) if row else None
 
 
 def _frame_data_array(card: dict[str, Any]) -> list[str]:
@@ -809,7 +792,6 @@ def _insert_printings_with_overlays(conn: sqlite3.Connection, printings_path: st
     """
     batch_size = 1000
     batch: list[dict[str, Any]] = []
-    oracle_id_to_card_json: dict[str, str] = {}
     printing_count = 0
     printing_skipped_count = 0
 
@@ -819,15 +801,12 @@ def _insert_printings_with_overlays(conn: sqlite3.Connection, printings_path: st
             printing_skipped_count += 1
             continue
 
-        # Load oracle card's trimmed JSON if not cached
-        if oracle_id not in oracle_id_to_card_json:
-            card_row = conn.execute("SELECT card_json FROM cards WHERE oracle_id = ?", (oracle_id,)).fetchone()
-            if not card_row:
-                printing_skipped_count += 1
-                continue
-            oracle_id_to_card_json[oracle_id] = card_row[0]
-
-        oracle_card_trimmed = json.loads(oracle_id_to_card_json[oracle_id])
+        # One indexed read per printing; nothing is kept between printings, so memory stays flat.
+        card_row = conn.execute("SELECT card_json FROM cards WHERE oracle_id = ?", (oracle_id,)).fetchone()
+        if not card_row:
+            printing_skipped_count += 1
+            continue
+        oracle_card_trimmed = json.loads(card_row[0])
         row = _build_printing_row(printing, oracle_card_trimmed)
         if row:
             batch.append(row)
