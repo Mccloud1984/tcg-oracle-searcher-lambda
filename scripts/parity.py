@@ -81,7 +81,8 @@ def top_n_overlap(ours: list[str], theirs: list[str], n: int = TOP_N) -> float:
     if not theirs:
         return 1.0 if not ours else 0.0
     their_top = theirs[:n]
-    return len(set(ours[:n]) & set(their_top)) / min(n, len(their_top))
+    their_unique = set(their_top)
+    return len(set(ours[:n]) & their_unique) / len(their_unique)
 
 
 def totals_within_tolerance(ours: int, theirs: int, tolerance: float = TOTAL_TOLERANCE) -> bool:
