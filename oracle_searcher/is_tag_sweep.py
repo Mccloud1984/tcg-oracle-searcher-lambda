@@ -27,7 +27,6 @@ from __future__ import annotations
 import argparse
 import json
 import logging
-import sqlite3
 import time
 import urllib.error
 import urllib.parse
@@ -36,7 +35,8 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any, Protocol
 
 if TYPE_CHECKING:
-    from collections.abc import Iterable
+    import sqlite3
+    from collections.abc import Callable, Iterable
 
 logger = logging.getLogger(__name__)
 
@@ -44,6 +44,7 @@ _SEARCH_URL = "https://api.scryfall.com/cards/search"
 _USER_AGENT = "tcg-oracle-searcher/0.1"
 _DEFAULT_MIN_INTERVAL = 1.0  # seconds between requests; Scryfall allows 2/sec (plan's own margin)
 _REQUEST_TIMEOUT = 30.0
+_HTTP_TOO_MANY_REQUESTS = 429
 
 # `has:` tags share card_is_tags with `is:` (api/parsing/db_info.py: both are search_aliases for
 # the same FieldInfo), so they're swept the same way; only the query text differs.
@@ -98,7 +99,9 @@ class SweepError(Exception):
 class FetchPage(Protocol):
     """A function that fetches one Scryfall search results page (real HTTP or a test double)."""
 
-    def __call__(self, url: str) -> dict[str, Any]: ...
+    def __call__(self, url: str) -> dict[str, Any]:
+        """Return the decoded JSON page at `url`."""
+        ...
 
 
 def _query_for(tag: str) -> str:
@@ -115,9 +118,8 @@ def _fetch_page(url: str) -> dict[str, Any]:
         with urllib.request.urlopen(request, timeout=_REQUEST_TIMEOUT) as response:  # noqa: S310 - see above
             return json.loads(response.read())
     except urllib.error.HTTPError as exc:
-        if exc.code == 429:
-            raise SweepError("rate limited (429)", completed={}) from exc
-        raise SweepError(f"HTTP {exc.code} fetching {url}", completed={}) from exc
+        reason = "rate limited (429)" if exc.code == _HTTP_TOO_MANY_REQUESTS else f"HTTP {exc.code} fetching {url}"
+        raise SweepError(reason, completed={}) from exc
 
 
 def sweep(
@@ -125,7 +127,7 @@ def sweep(
     *,
     fetch_page: FetchPage = _fetch_page,
     min_interval: float = _DEFAULT_MIN_INTERVAL,
-    sleep: Any = time.sleep,
+    sleep: Callable[[float], object] = time.sleep,
 ) -> dict[str, list[str]]:
     """Return `{tag: [oracle_id, ...]}` for each of `tags`, paging `next_page` to exhaustion.
 
@@ -214,7 +216,7 @@ def main() -> None:
     try:
         result = sweep(tags)
     except SweepError as exc:
-        logger.error("sweep stopped early: %s", exc.reason)  # noqa: TRY400 - no traceback needed, reason says it all
+        logger.error("sweep stopped early: %s", exc.reason)
         write_sweep_file(exc.completed, args.out)
         raise SystemExit(1) from exc
 

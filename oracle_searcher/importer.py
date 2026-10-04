@@ -108,6 +108,13 @@ def _has_color_indicator(card: dict[str, Any]) -> bool:
     return any(face.get("color_indicator") for face in card.get("card_faces") or [])
 
 
+def _is_spell(card: dict[str, Any]) -> bool:
+    """`is:spell`: the card's front face is not a land (Spell // Land modal DFCs count as spells)."""
+    faces = card.get("card_faces") or []
+    type_line = (faces[0].get("type_line") if faces else None) or card.get("type_line") or ""
+    return "Land" not in type_line
+
+
 IS_TAG_CHECKS: dict[str, Any] = {
     "arena_league": lambda c, *_: "arenaleague" in _promo_types(c),
     "booster": lambda c, *_: bool(c.get("booster")),
@@ -145,6 +152,7 @@ IS_TAG_CHECKS: dict[str, Any] = {
     "reserved": lambda c, *_: bool(c.get("reserved")),
     "scryfallpreview": lambda c, *_: (c.get("preview") or {}).get("source") == "Scryfall",
     "set_promo": lambda c, *_: "setpromo" in _promo_types(c),
+    "spell": lambda c, *_: _is_spell(c),
     "spotlight": lambda c, *_: bool(c.get("story_spotlight")),
     "universesbeyond": lambda c, *_: "universesbeyond" in _promo_types(c),
 }

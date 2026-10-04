@@ -52,11 +52,8 @@ _DERIVED_EXPANSIONS: dict[tuple[str, str], str] = {
     # NOT (it also matches Kindred non-creature cards carrying an outlaw subtype).
     ("is", "historic"): "t:legendary or t:artifact or t:saga",  # exact
     ("is", "permanent"): "t:creature or t:artifact or t:enchantment or t:land or t:planeswalker or t:battle",  # +2 / 25954
-    # Deliberately NOT ("is", "spell") here: this table is shared with Sylvan's own live
-    # Postgres app (api/parsing/tests/test_sql_gen.py asserts is:spell stays a literal
-    # card_is_tags leaf there), so oracle_searcher answers is:spell as an IS_TAG_CHECKS rule
-    # at import time instead (oracle_searcher/importer.py) rather than changing this shared
-    # expansion table's behavior for Sylvan too. See docs/is-tags.md.
+    # Deliberately NOT ("is", "spell"): Sylvan's own tests keep it a literal card_is_tags leaf, so
+    # oracle_searcher answers it as an IS_TAG_CHECKS rule at import time (oracle_searcher/importer.py).
     ("is", "party"): "t:creature (t:cleric or t:rogue or t:warrior or t:wizard or kw:changeling)",  # exact
     ("is", "outlaw"): "t:assassin or t:mercenary or t:pirate or t:rogue or t:warlock or kw:changeling",  # exact
     ("is", "vanilla"): 't:creature o=""',  # empty-oracle equality; -11 subset (Adventure/DFC textless faces + Dryad Arbor)

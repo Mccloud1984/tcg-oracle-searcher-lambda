@@ -71,7 +71,6 @@ EQUIVALENCES = [
     ("is:tricycleland", "otag:tricycle-land"),
     ("is:trikeland", "otag:tricycle-land"),  # alias of tricycleland
     ("is:pathway", "otag:cycle-pathway"),
-    ("is:spell", "-t:land"),
     # composes under negation and inside compounds
     ("-frame:old", "-(frame:1993 or frame:1997)"),
     ("t:goblin frame:modern", "t:goblin frame:2003"),
