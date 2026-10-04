@@ -201,3 +201,21 @@ def test_printing_only_in_another_game_does_not_add_tags(tmp_path: Path) -> None
     conn = sqlite3.connect(out)
     conn.row_factory = sqlite3.Row
     assert {"foil", "nonfoil"} & _tags(conn, "Arden Angel") == {"foil"}
+
+
+def test_variation_printing_does_not_add_a_frame(tmp_path: Path) -> None:
+    """Arcane Teachings' plst JUD-78 is frame 1997 and its variation JUD-78† is 2015 (`variation: true`).
+
+    Scryfall's default search hides variations (include:variations shows them): live frame:2015 lists no plst
+    printing of it, and ours was 4 over (is:new 29563 vs 29561, 2026-10-04). Real 2026-10-03 rows.
+    """
+    out = tmp_path / "variation.sqlite"
+    build(
+        FIXTURES_DIR / "variation_cards.jsonl",
+        TAGS_FIXTURE,
+        out,
+        printings_path=FIXTURES_DIR / "variation_printings.jsonl",
+    )
+    conn = sqlite3.connect(out)
+    assert [c["name"] for c in search(conn, "frame:1997").data] == ["Arcane Teachings"]
+    assert search(conn, "frame:2015").data == []

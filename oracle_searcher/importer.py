@@ -493,7 +493,7 @@ def _is_extra(card: dict[str, Any]) -> bool:
     typed "Card"/"Stickers"/"Token ..." (counters, Role tokens, Secret Lair mana cards), or only in hidden printings;
     no shown card fit. A Dungeon in a double_faced_token layout (Undercity) is shown. Printings that exist
     only in another game (Astral `past`, Sega `psdg`) are hidden even for a legal card (Arden Angel's psdg printing
-    was a phantom is:nonfoil); non-English printings still count (frame:1997 lists Hornet Queen via a French one).
+    was a phantom is:nonfoil), and so are `variation` printings (include:variations shows them); non-English printings still count (frame:1997 lists Hornet Queen via a French one).
     """
     hidden_funny = _is_playtest_or_funny(card) and not _legal_somewhere(card) and card.get("set") not in _VISIBLE_FUNNY_SETS
     hidden_alchemy = card.get("set_type") == "alchemy" and not _legal_somewhere(card)
@@ -507,6 +507,7 @@ def _is_extra(card: dict[str, Any]) -> bool:
         or hidden_oddity
         or hidden_layout
         or hidden_game
+        or card.get("variation")
         or card.get("set_type") == "memorabilia"
     )
 
