@@ -12,13 +12,13 @@ Early work. The plan:
 - **Ordering and paging** as Scryfall does them, with results in Scryfall's card-object shape.
 - **Double-faced cards:** a card matches when any of its faces matches.
 - **Data:** a nightly import from Scryfall's bulk data files, built into one SQLite file and published to S3.
-- **Deployment:** a search Lambda and an import Lambda, with a Terraform module you can use from your own stack.
+- **Deployment:** a search Lambda, an import Lambda and a weekly `is:` tag sweep Lambda, with a Terraform module you can use from your own stack.
 
 ## Deploy
 
 1. **Get the zip.** Download `tcg-oracle-searcher-lambda.zip` from a [release](../../releases), or build it: `scripts/build_zip.sh` (needs Python 3.13 and pip; it installs the dependencies as Linux arm64 wheels, so it works from any machine) writes `dist/tcg-oracle-searcher-lambda.zip`, under 1 MB.
-2. **Use the module** in your Terraform (see `terraform/README.md`): `name_prefix`, `lambda_zip_path`, and optionally an existing `bucket_name`. It creates the bucket (when you don't pass one), both Lambdas (python3.13, arm64), their least-privilege roles, 14-day log groups and the nightly import schedule. Pin the module to the same release tag as the zip.
-3. **Run the import once.** The nightly import runs at 07:17 UTC, but the search Lambda has no card file until an import has succeeded. After the first apply, run it by hand, for example `aws lambda invoke --function-name <import_function_name> --cli-read-timeout 310 out.json`; it takes a few minutes. It writes `cards/builds/<build>.sqlite.gz` and then `cards/latest.json`. A build that fails its check is not published and the invocation fails.
+2. **Use the module** in your Terraform (see `terraform/README.md`): `name_prefix`, `lambda_zip_path`, and optionally an existing `bucket_name`. It creates the bucket (when you don't pass one), the three Lambdas (python3.13, arm64), their least-privilege roles, 14-day log groups and the import (nightly) and sweep (weekly) schedules. Pin the module to the same release tag as the zip.
+3. **Run the import once.** The nightly import runs at 07:17 UTC, but the search Lambda has no card file until an import has succeeded. After the first apply, run it by hand, for example `aws lambda invoke --function-name <import_function_name> --cli-read-timeout 310 out.json`; it takes a few minutes. It writes `cards/builds/<build>.sqlite.gz` and then `cards/latest.json`. A build that fails its check is not published and the invocation fails. Optionally run the sweep Lambda first (`<sweep_function_name>`, about 10 minutes, `--cli-read-timeout 910`) so that import already has the `is:` tags a card row cannot answer.
 4. **Search.** Invoke `search_function_name` with `{"q": "t:creature c:r", "order": "edhrec", "dir": "auto", "page": 1}`. The answer is `{data, has_more, total_cards}`, `{unsupported: reason}` (ask Scryfall instead) or `{error: message}`. A fresh container downloads the card file first, so the first call after a deploy or idle spell is slower.
 
 ## Credits

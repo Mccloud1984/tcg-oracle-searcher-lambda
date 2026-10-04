@@ -13,6 +13,11 @@ output "import_function_name" {
   description = "Name of the import Lambda. Invoke it once by hand after the first apply."
 }
 
+output "sweep_function_name" {
+  value       = aws_lambda_function.sweep.function_name
+  description = "Name of the sweep Lambda. Invoke it once by hand to get the first sweeps/is_tags.json before the first schedule."
+}
+
 output "bucket_name" {
   value       = local.bucket_name
   description = "The S3 bucket holding the card files."

@@ -21,6 +21,12 @@ variable "import_schedule" {
   description = "EventBridge schedule expression for the import Lambda. null turns the schedule off (run the import by hand)."
 }
 
+variable "sweep_schedule" {
+  type        = string
+  default     = "cron(23 6 ? * SUN *)"
+  description = "EventBridge schedule expression for the sweep Lambda (the is: tag sweep, about 10 minutes). null turns the schedule off (run the sweep by hand)."
+}
+
 variable "lambda_zip_path" {
   type        = string
   description = "Path to tcg-oracle-searcher-lambda.zip (scripts/build_zip.sh, or the zip attached to a GitHub release)."
