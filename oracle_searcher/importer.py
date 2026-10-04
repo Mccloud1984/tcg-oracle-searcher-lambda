@@ -493,12 +493,14 @@ def _is_extra(card: dict[str, Any]) -> bool:
     typed "Card"/"Stickers"/"Token ..." (counters, Role tokens, Secret Lair mana cards), or only in hidden printings;
     no shown card fit. A Dungeon in a double_faced_token layout (Undercity) is shown. Printings that exist
     only in another game (Astral `past`, Sega `psdg`) are hidden even for a legal card (Arden Angel's psdg printing
-    was a phantom is:nonfoil), and so are `variation` printings (include:variations shows them); non-English printings still count (frame:1997 lists Hornet Queen via a French one).
+    was a phantom is:nonfoil), silver-border promo printings legal nowhere (the pal04 promos of Un-cards: is:arena_league 46 vs 40;
+    the silver Secret Lair ponies stay visible), and so are `variation` printings (include:variations shows them); non-English printings still count (frame:1997 lists Hornet Queen via a French one).
     """
     hidden_funny = _is_playtest_or_funny(card) and not _legal_somewhere(card) and card.get("set") not in _VISIBLE_FUNNY_SETS
     hidden_alchemy = card.get("set_type") == "alchemy" and not _legal_somewhere(card)
     hidden_oddity = not _legal_somewhere(card) and (bool(card.get("digital")) or _is_non_card_object(card))
     hidden_layout = card.get("layout") in _HIDDEN_LAYOUTS and not _is_dungeon(card)
+    hidden_silver = card.get("set_type") == "promo" and card.get("border_color") == "silver" and not _legal_somewhere(card)
     hidden_game = not _PLAYABLE_GAMES.intersection(card.get("games") or _PLAYABLE_GAMES)
     return bool(
         card.get("content_warning")
@@ -506,6 +508,7 @@ def _is_extra(card: dict[str, Any]) -> bool:
         or hidden_alchemy
         or hidden_oddity
         or hidden_layout
+        or hidden_silver
         or hidden_game
         or card.get("variation")
         or card.get("set_type") == "memorabilia"

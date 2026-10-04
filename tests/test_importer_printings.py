@@ -219,3 +219,22 @@ def test_variation_printing_does_not_add_a_frame(tmp_path: Path) -> None:
     conn = sqlite3.connect(out)
     assert [c["name"] for c in search(conn, "frame:1997").data] == ["Arcane Teachings"]
     assert search(conn, "frame:2015").data == []
+
+
+def test_silver_border_promo_of_an_un_card_adds_no_tags(tmp_path: Path) -> None:
+    """Ashnod's Coupon's pal04 printing (Arena League 2004, silver border, legal nowhere) is hidden on Scryfall.
+
+    is:arena_league was 46 vs live 40: the six Un-card pal04 promos (Booster Tutor, Mise, ...) are not in the live
+    list, nor is Ashnod's Coupon in frame:2003 (2026-10-04). Its ugl printing still shows the card. Real rows.
+    """
+    out = tmp_path / "silver.sqlite"
+    build(
+        FIXTURES_DIR / "default_hidden_cards.jsonl",
+        TAGS_FIXTURE,
+        out,
+        printings_path=FIXTURES_DIR / "default_hidden_printings.jsonl",
+    )
+    conn = sqlite3.connect(out)
+    conn.row_factory = sqlite3.Row
+    assert not {"arena_league", "promo"} & _tags(conn, "Ashnod's Coupon")
+    assert not conn.execute("SELECT is_extra FROM cards WHERE card_name = ?", ("Ashnod's Coupon",)).fetchone()["is_extra"]
