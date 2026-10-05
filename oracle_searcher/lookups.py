@@ -145,17 +145,49 @@ def _printing_filters(event: dict[str, Any]) -> tuple[list[str], list[Any]]:
     return clauses, params
 
 
+# A printing as a printing picker shows it (Purroxy's printing and token-printing lists): its own set, number, images,
+# prices and buy links. Live 2026-10-05: all of Treasure's printings in full were 5.6 MB in 2.9 s, close to Lambda's
+# 6 MB reply limit, 98% of it each printing's `all_parts` (374 related cards), which a picker never reads.
+PRINTING_SUMMARY_FIELDS = frozenset(
+    {
+        "id",
+        "name",
+        "set",
+        "set_name",
+        "set_type",
+        "collector_number",
+        "released_at",
+        "games",
+        "layout",
+        "image_uris",
+        "card_faces",
+        "prices",
+        "purchase_uris",
+    }
+)
+_SUMMARY_FACE_FIELDS = ("name", "image_uris")
+
+
+def _summary(printing: dict[str, Any]) -> dict[str, Any]:
+    short = {key: value for key, value in printing.items() if key in PRINTING_SUMMARY_FIELDS}
+    if faces := printing.get("card_faces"):
+        short["card_faces"] = [{k: face[k] for k in _SUMMARY_FACE_FIELDS if k in face} for face in faces]
+    return short
+
+
 def prints(conn: sqlite3.Connection, event: dict[str, Any], attach: Attach, *, today: str | None = None) -> dict[str, Any]:  # noqa: ARG001
-    """`{q, sets_exclude?, sets_restrict?, released_on_or_before?, paper_only?}` -> `{data}`.
+    """`{q, sets_exclude?, sets_restrict?, released_on_or_before?, paper_only?, summary?}` -> `{data}`.
 
     Every printing of the cards `q` matches (extras included, no paging), newest first, narrowed by the
-    printing-level fields.
+    printing-level fields. With `summary`, each printing carries only PRINTING_SUMMARY_FIELDS (for a printing picker;
+    a caller that uses the printing as a card, e.g. to detect its tokens, asks for the full card).
     """
     register_regexp(conn)
     where, params = where_for(event["q"], include_extras=True)
     clauses, filter_params = _printing_filters(event)
     attach()
-    return {"data": _printings(conn, " AND ".join([f"({where})", *clauses]), [*params, *filter_params], cards_first=True)}
+    data = _printings(conn, " AND ".join([f"({where})", *clauses]), [*params, *filter_params], cards_first=True)
+    return {"data": [_summary(p) for p in data] if event.get("summary") else data}
 
 
 def autocomplete(conn: sqlite3.Connection, event: dict[str, Any], attach: Attach, *, today: str | None = None) -> dict[str, Any]:  # noqa: ARG001

@@ -19,7 +19,9 @@ from tests.conftest import CARDS_FIXTURE, FIXTURES_DIR, PRINTINGS_FIXTURE, TAGS_
 from tests.helpers import insert_card, load_fixture_cards, make_db
 
 TODAY = "2026-10-04"
-EXTRA_CARDS = FIXTURES_DIR / "lookups_extra_cards.jsonl"  # real Jötun Grunt (an accent to fold) and its 4 real printings
+EXTRA_CARDS = (
+    FIXTURES_DIR / "lookups_extra_cards.jsonl"
+)  # real Jötun Grunt (an accent to fold) and its 4 real printings; real Incubator // Phyrexian (a double-faced token with all_parts) and 3 printings
 EXTRA_PRINTINGS = FIXTURES_DIR / "lookups_extra_printings.jsonl"
 FOREST_ID = "b34bb2dc-c1af-4d77-b0b3-a0fb342a5fc6"  # oracle id
 SOL_RING = "Sol Ring"
@@ -374,3 +376,33 @@ def test_name_matching_reads_an_index_not_the_cards_table(db, tier: int) -> None
     sql = lookups._NAME_TIERS[tier]
     plan = " ".join(row[3] for row in db.execute(f"EXPLAIN QUERY PLAN {sql}", {"extra": 0, "folded": "x", "key": "x"}))
     assert "COVERING INDEX" in plan
+
+
+def test_prints_summary_keeps_only_what_a_printing_picker_shows(db) -> None:
+    """`summary` keeps a printing's own fields (set, number, images, prices, buy links), each identical to the full entry's.
+
+    Live 2026-10-05: all of Treasure's printings came back as 5.6 MB in 2.9 s, close to Lambda's 6 MB reply limit; 98%
+    was each printing's `all_parts` (374 related cards), which a printing picker never reads.
+    """
+    full = prints(db, '!"Incubator // Phyrexian" t:token')
+    summary = prints(db, '!"Incubator // Phyrexian" t:token', summary=True)
+    assert [c["id"] for c in summary] == [c["id"] for c in full]
+    for short, whole in zip(summary, full, strict=True):
+        assert set(short) <= lookups.PRINTING_SUMMARY_FIELDS
+        assert "all_parts" not in short
+        assert "oracle_text" not in short
+        for key, value in short.items():
+            if key != "card_faces":
+                assert value == whole[key], key
+    with_parts = [c for c in full if c.get("all_parts")]
+    assert with_parts, "the fixture token should carry all_parts, or this test proves nothing"
+
+
+def test_prints_summary_keeps_each_faces_name_and_images(db) -> None:
+    """A double-faced printing's back image (the picker shows it) lives on its second face."""
+    full = [c for c in prints(db, '!"Incubator // Phyrexian" t:token') if c.get("card_faces")]
+    summary = {c["id"]: c for c in prints(db, '!"Incubator // Phyrexian" t:token', summary=True)}
+    assert full, "needs a double-faced fixture card"
+    for whole in full:
+        faces = summary[whole["id"]]["card_faces"]
+        assert faces == [{k: f[k] for k in ("name", "image_uris") if k in f} for f in whole["card_faces"]]
