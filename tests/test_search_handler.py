@@ -248,3 +248,14 @@ def test_reset_forgets_the_background_download(s3_printings, printings_downloads
     search_handler.handler({"q": "name:sol"}, None)
     search_handler.printings_connection()
     assert len(printings_downloads.fetches) == 2  # one per cold start
+
+
+def test_a_search_with_prefer_attaches_the_printings_file(s3_printings) -> None:
+    """`prefer:` needs the printings file; the oldest Sol Ring in the fixture printings is the 2005 Gateway promo."""
+    result = search_handler.handler({"q": '!"Sol Ring" prefer:oldest'}, None)
+    assert [(card["name"], card["set"]) for card in result["data"]] == [("Sol Ring", "g05")]
+
+
+def test_a_search_with_prefer_on_an_old_build_is_unsupported(s3_cards) -> None:
+    """A build without a printings file can't pick a printing, so Purroxy falls back to Scryfall."""
+    assert set(search_handler.handler({"q": '!"Sol Ring" prefer:usd-low'}, None)) == {"unsupported"}

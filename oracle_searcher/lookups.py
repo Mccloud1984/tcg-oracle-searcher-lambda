@@ -13,8 +13,9 @@ from datetime import UTC, datetime
 from typing import TYPE_CHECKING, Any
 
 from oracle_searcher.importer import folded_name, merge_overlay, name_sort_key
+from oracle_searcher.printings_choice import PRINTING_ORDER
 from oracle_searcher.schema import PRINTINGS_TABLE
-from oracle_searcher.search import Unsupported, register_regexp, where_for
+from oracle_searcher.search import Unsupported, compile_search, register_regexp
 
 if TYPE_CHECKING:
     import sqlite3
@@ -36,8 +37,6 @@ _NAME_TIERS = (
     f" ORDER BY instr({_FACES}, ' // ' || :folded || ' // '), id",
     "SELECT id FROM cards WHERE is_extra = :extra AND :key != '' AND name_sort_key = :key ORDER BY id",
 )
-# Newest first; ties (one release day, many printings) by name, then collector number as a number where it is one.
-_PRINTING_ORDER = "p.released_at DESC, card.name_sort_key, CAST(p.collector_number AS INTEGER), p.collector_number, p.id"
 
 
 def _today(today: str | None) -> str:
@@ -71,7 +70,7 @@ def _printings(
     join = "CROSS JOIN" if cards_first else "JOIN"
     sql = f"SELECT card.card_json, p.card_json FROM cards AS card {join} {PRINTINGS_TABLE} AS p ON p.oracle_id = card.oracle_id"
     # Filter: keep printing if card is extra OR printing is not extra
-    sql += f" WHERE ({where}) AND (card.is_extra = 1 OR p.is_extra = 0) ORDER BY {_PRINTING_ORDER}"
+    sql += f" WHERE ({where}) AND (card.is_extra = 1 OR p.is_extra = 0) ORDER BY {PRINTING_ORDER}"
     if limit:
         sql += f" LIMIT {int(limit)}"
     return [merge_overlay(json.loads(card), json.loads(overlay)) for card, overlay in conn.execute(sql, params)]
@@ -179,12 +178,15 @@ def prints(conn: sqlite3.Connection, event: dict[str, Any], attach: Attach, *, t
     """`{q, sets_exclude?, sets_restrict?, released_on_or_before?, paper_only?, summary?}` -> `{data}`.
 
     Every printing of the cards `q` matches (extras included, no paging), newest first, narrowed by the
-    printing-level fields. With `summary`, each printing carries only PRINTING_SUMMARY_FIELDS (for a printing picker;
+    printing-level fields and by `q`'s top-level `game:` terms (a `prefer:` in `q` changes nothing: every printing
+    comes back). With `summary`, each printing carries only PRINTING_SUMMARY_FIELDS (for a printing picker;
     a caller that uses the printing as a card, e.g. to detect its tokens, asks for the full card).
     """
     register_regexp(conn)
-    where, params = where_for(event["q"], include_extras=True)
+    where, params, terms = compile_search(event["q"], include_extras=True)
     clauses, filter_params = _printing_filters(event)
+    clauses += terms.game_sql
+    filter_params += terms.game_params
     attach()
     data = _printings(conn, " AND ".join([f"({where})", *clauses]), [*params, *filter_params], cards_first=True)
     return {"data": [_summary(p) for p in data] if event.get("summary") else data}

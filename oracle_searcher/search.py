@@ -12,11 +12,18 @@ from typing import TYPE_CHECKING, Any, Literal
 
 from api.parsing import parse_scryfall_query
 from api.parsing.card_query_nodes import CardAttributeNode, CardBinaryOperatorNode
-from api.parsing.nodes import AndNode, NotNode, OrNode, StringValueNode
+from api.parsing.nodes import AndNode, NotNode, OrNode, Query, StringValueNode
+from oracle_searcher.printings_choice import (
+    PrintingTerms,
+    chosen_printings,
+    has_passing_printing,
+    split_printing_terms,
+)
 from oracle_searcher.sqlite_compiler import EXTRA_TYPE_VALUES, Unsupported, compile_query
 
 if TYPE_CHECKING:
     import sqlite3
+    from collections.abc import Callable
 
     from api.parsing.nodes import QueryNode
 
@@ -134,17 +141,35 @@ def _order_by_sql(order: str, direction: str) -> str:
     return ", ".join(clauses)
 
 
-def where_for(q: str, *, include_extras: bool) -> tuple[str, list[Any]]:
-    """The WHERE clause (table alias `card`) and parameters for query *q*; raises `Unsupported` rather than guessing.
+def compile_search(q: str, *, include_extras: bool) -> tuple[str, list[Any], PrintingTerms]:
+    """The card-level WHERE clause (alias `card`), its parameters and the printing terms for query *q*.
 
-    Without `include_extras` the clause hides what Scryfall hides by default, unless the query names an extra type.
-    The lookup ops pass True: they must also find tokens and the like.
+    Raises `Unsupported` rather than guessing. Without `include_extras` the clause hides what Scryfall hides by
+    default, unless the query names an extra type; the lookup ops pass True: they must also find tokens and the
+    like. The printing terms (`printings_choice`) are not in the clause: the caller applies them to printings.
     """
     query = parse_scryfall_query(q)
-    where_sql, params = compile_query(query)
+    terms = split_printing_terms(query.root, query.prefer)
+    where_sql, params = compile_query(Query(terms.root))
     if include_extras or _reveals_extras(query.root):
+        return where_sql, params, terms
+    return f"({where_sql}) AND card.is_extra = 0", params, terms
+
+
+def where_for(q: str, *, include_extras: bool) -> tuple[str, list[Any]]:
+    """The WHERE clause (alias `card`) and parameters for the cards query *q* finds (see `compile_search`).
+
+    When *q* has printing terms the clause asks for a passing printing, so the printings file must be attached.
+    """
+    where_sql, params, terms = compile_search(q, include_extras=include_extras)
+    return _with_a_passing_printing(where_sql, params, terms)
+
+
+def _with_a_passing_printing(where_sql: str, params: list[Any], terms: PrintingTerms) -> tuple[str, list[Any]]:
+    if not terms.needed:
         return where_sql, params
-    return f"({where_sql}) AND card.is_extra = 0", params
+    exists_sql, exists_params = has_passing_printing(terms)
+    return f"({where_sql}) AND {exists_sql}", [*params, *exists_params]
 
 
 def search(  # noqa: PLR0913, PLR0917 - signature fixed by docs/PLAN-2026-10-03.md's search() contract
@@ -154,10 +179,19 @@ def search(  # noqa: PLR0913, PLR0917 - signature fixed by docs/PLAN-2026-10-03.
     dir: Dir = "auto",  # noqa: A002 - name fixed by docs/PLAN-2026-10-03.md's search() contract
     page: int = 1,
     page_size: int = DEFAULT_PAGE_SIZE,
+    *,
+    attach: Callable[[], object] | None = None,
 ) -> SearchResult:
-    """Parse, compile and run *q* against *conn*. Raises `Unsupported` rather than guessing."""
+    """Parse, compile and run *q* against *conn*. Raises `Unsupported` rather than guessing.
+
+    `attach` makes the printings file available on `conn` (the handler's `printings_connection`); it is called only
+    for a query with printing terms (`game:`, `prefer:`), and may be None when the file is attached already.
+    """
     register_regexp(conn)
-    where_sql, params = where_for(q, include_extras=False)
+    where_sql, params, terms = compile_search(q, include_extras=False)
+    where_sql, params = _with_a_passing_printing(where_sql, params, terms)
+    if terms.needed and attach is not None:
+        attach()
 
     total_cards = conn.execute(
         f"SELECT COUNT(*) FROM cards AS card WHERE {where_sql}",
@@ -167,13 +201,17 @@ def search(  # noqa: PLR0913, PLR0917 - signature fixed by docs/PLAN-2026-10-03.
     order_by_sql = _order_by_sql(order, dir)
     offset = (page - 1) * page_size
     rows = conn.execute(
-        f"SELECT card.card_json FROM cards AS card WHERE {where_sql} ORDER BY {order_by_sql} LIMIT ? OFFSET ?",
+        f"SELECT card.id, card.card_json FROM cards AS card WHERE {where_sql} ORDER BY {order_by_sql} LIMIT ? OFFSET ?",
         [*params, page_size + 1, offset],
     ).fetchall()
 
     has_more = len(rows) > page_size
-    data = [json.loads(row[0]) for row in rows[:page_size]]
+    page_rows = rows[:page_size]
+    if terms.needed:
+        data = chosen_printings(conn, [card_id for card_id, _ in page_rows], terms)
+    else:
+        data = [json.loads(card_json) for _, card_json in page_rows]
     return SearchResult(data=data, has_more=has_more, total_cards=total_cards)
 
 
-__all__ = ["SearchResult", "Unsupported", "register_regexp", "search", "where_for"]
+__all__ = ["SearchResult", "Unsupported", "compile_search", "register_regexp", "search", "where_for"]

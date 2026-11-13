@@ -77,6 +77,10 @@ Based on the official Scryfall syntax documentation and analysis of the existing
 ### 12. Special Syntax
 - **Regular expressions**: `/pattern/`
 
+### 12a. Printings ✅ Implemented (engine v0.3.4)
+- **game:** - `game:paper`, `game:mtgo`, `game:arena` (and `-game:`): a printing-level filter. The engine answers it as a top-level and-ed term only; inside an `or` it answers "unsupported".
+- **prefer:** - `prefer:usd-low|usd-high|oldest|newest|default|promo`: not a filter, it picks which printing of each card comes back (`usd-low`: the cheapest USD price, normal else foil else etched, ties the newest). Lifted out of the tree onto `Query.prefer`; once, at the top level only.
+
 ### 13. Oracle Tags
 - **ot:** or **oracle_tags:** - Oracle tags
 

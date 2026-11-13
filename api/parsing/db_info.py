@@ -272,6 +272,20 @@ DB_COLUMNS = [
         parser_class=ParserClass.TEXT,
     ),
     FieldInfo(
+        db_column_name="card_games",  # a printing's games (paper, mtgo, arena): a printing-level filter
+        field_type=FieldType.JSONB_ARRAY,
+        search_aliases=["game"],
+        parser_class=ParserClass.TEXT,
+    ),
+    FieldInfo(
+        # Not a filter: which printing of each card to return. post_parse.lift_prefer moves it onto Query.prefer
+        # before anything reads the tree; it is listed here only so both front-end parsers read `prefer:value`.
+        db_column_name="prefer",
+        field_type=FieldType.TEXT,
+        search_aliases=["prefer"],
+        parser_class=ParserClass.TEXT,
+    ),
+    FieldInfo(
         db_column_name="released_at",
         field_type=FieldType.DATE,
         search_aliases=["date"],
