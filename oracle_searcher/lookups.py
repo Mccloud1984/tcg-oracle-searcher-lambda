@@ -9,10 +9,11 @@ handler turns that, and any other failure, into the contract's `{"unsupported"}`
 from __future__ import annotations
 
 import json
+from datetime import UTC, datetime
 from typing import TYPE_CHECKING, Any
 
 from oracle_searcher.importer import folded_name, merge_overlay, name_sort_key
-from oracle_searcher.printings_choice import PRINTING_ORDER, today_or_now
+from oracle_searcher.printings_choice import PRINTING_ORDER
 from oracle_searcher.schema import PRINTINGS_TABLE
 from oracle_searcher.search import Unsupported, compile_search, register_regexp
 
@@ -36,6 +37,10 @@ _NAME_TIERS = (
     f" ORDER BY instr({_FACES}, ' // ' || :folded || ' // '), id",
     "SELECT id FROM cards WHERE is_extra = :extra AND :key != '' AND name_sort_key = :key ORDER BY id",
 )
+
+
+def _today(today: str | None) -> str:
+    return today or datetime.now(UTC).date().isoformat()
 
 
 def _matching_card_row(conn: sqlite3.Connection, name: str) -> tuple[str, str | None, str] | None:
@@ -91,7 +96,7 @@ def _card_by_name(conn: sqlite3.Connection, name: str, attach: Attach, today: st
 
 def named(conn: sqlite3.Connection, event: dict[str, Any], attach: Attach, *, today: str | None = None) -> dict[str, Any]:
     """`{name}` -> `{card}`, or `{card: None}` when no card matches (Purroxy then asks Scryfall's fuzzy match)."""
-    return {"card": _card_by_name(conn, event["name"], attach, today_or_now(today))}
+    return {"card": _card_by_name(conn, event["name"], attach, _today(today))}
 
 
 def _card_by_identifier(conn: sqlite3.Connection, ident: dict[str, Any], attach: Attach, today: str) -> Card | None:
@@ -117,7 +122,7 @@ def collection(conn: sqlite3.Connection, event: dict[str, Any], attach: Attach, 
     if len(identifiers) > MAX_COLLECTION:
         msg = f"collection takes at most {MAX_COLLECTION} identifiers, got {len(identifiers)}"
         raise Unsupported(msg)
-    day = today_or_now(today)
+    day = _today(today)
     found = [(ident, _card_by_identifier(conn, ident, attach, day)) for ident in identifiers]
     return {"data": [card for _, card in found if card], "not_found": [ident for ident, card in found if not card]}
 

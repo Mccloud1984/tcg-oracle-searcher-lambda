@@ -4,8 +4,9 @@ Scryfall reads both (scryfall.com/docs/syntax). `game:paper|mtgo|arena` holds wh
 value; here it is answered only as a top-level and-ed term (or its negation), where it can filter printings
 exactly. Nested anywhere else it reaches the compiler, which has no `card_games` column and raises `Unsupported`.
 
-A printing passes when it is released by today, is not a hidden printing of a visible card (as the `prints` lookup
-reads them), and meets every `game:` term. A search naming either keyword returns only cards with a passing
+A printing passes when it is not a hidden printing of a visible card (as the `prints` lookup reads them) and meets
+every `game:` term. Unreleased (preview) printings pass, as on Scryfall (live 2026-11-13: Archenemy's Charm's
+slp printing, out 2026-12-11, is its `game:paper prefer:newest` answer); being unpriced, they sort last for `usd-*`. A search naming either keyword returns only cards with a passing
 printing, each in the passing printing `prefer:` picks: `usd-low` the lowest USD price (normal, else foil, else
 etched; unpriced last; ties the newest), `usd-high` the reverse, `oldest`/`newest` by release date, and
 `default`/`promo` (or no `prefer:`) the card's own printing when it passes, else the newest that does. Card
@@ -16,7 +17,6 @@ from __future__ import annotations
 
 import json
 from dataclasses import dataclass
-from datetime import UTC, datetime
 from typing import TYPE_CHECKING, Any
 
 from api.parsing.card_query_nodes import CardAttributeNode, CardBinaryOperatorNode
@@ -49,11 +49,6 @@ _PREFER_ORDER = {
     "oldest": _OLDEST,
 }
 _CARD_PRINTING_FIRST = f"p.id != json_extract(card.card_json, '$.id'), {PRINTING_ORDER}"
-
-
-def today_or_now(today: str | None) -> str:
-    """`today` as given (tests), else today's UTC date in ISO form."""
-    return today or datetime.now(UTC).date().isoformat()
 
 
 def _game_value(node: QueryNode) -> str | None:
@@ -92,10 +87,10 @@ class PrintingTerms:
         """True when the search has to read printings (a `game:` term, or a `prefer:` other than the card's own)."""
         return bool(self.game_sql) or self.prefer not in _KEEPS_THE_CARD_PRINTING
 
-    def passing(self, today: str) -> tuple[str, list[Any]]:
+    def passing(self) -> tuple[str, list[Any]]:
         """WHERE over `card` and `p` for the card's printings that pass (see the module docstring)."""
-        clauses = ["p.oracle_id = card.oracle_id", "(card.is_extra = 1 OR p.is_extra = 0)", "p.released_at <= ?", *self.game_sql]
-        return " AND ".join(clauses), [today, *self.game_params]
+        clauses = ["p.oracle_id = card.oracle_id", "(card.is_extra = 1 OR p.is_extra = 0)", *self.game_sql]
+        return " AND ".join(clauses), list(self.game_params)
 
 
 def split_printing_terms(root: QueryNode, prefer: str | None) -> PrintingTerms:
@@ -117,17 +112,17 @@ def split_printing_terms(root: QueryNode, prefer: str | None) -> PrintingTerms:
     return PrintingTerms(rest, tuple(game_sql), tuple(game_params), prefer)
 
 
-def has_passing_printing(terms: PrintingTerms, today: str) -> tuple[str, list[Any]]:
+def has_passing_printing(terms: PrintingTerms) -> tuple[str, list[Any]]:
     """A card-level WHERE term: the card has a printing that passes."""
-    passing, params = terms.passing(today)
+    passing, params = terms.passing()
     return f"EXISTS (SELECT 1 FROM {PRINTINGS_TABLE} AS p WHERE {passing})", params
 
 
-def chosen_printings(conn: sqlite3.Connection, card_ids: list[int], terms: PrintingTerms, today: str) -> list[dict[str, Any]]:
+def chosen_printings(conn: sqlite3.Connection, card_ids: list[int], terms: PrintingTerms) -> list[dict[str, Any]]:
     """Each of `card_ids` (in that order) as its preferred passing printing's full trimmed card JSON."""
     if not card_ids:
         return []
-    passing, params = terms.passing(today)
+    passing, params = terms.passing()
     order = _PREFER_ORDER.get(terms.prefer or "", _CARD_PRINTING_FIRST)
     ids = ", ".join("?" for _ in card_ids)
     rows = conn.execute(

@@ -18,7 +18,6 @@ from oracle_searcher.printings_choice import (
     chosen_printings,
     has_passing_printing,
     split_printing_terms,
-    today_or_now,
 )
 from oracle_searcher.sqlite_compiler import EXTRA_TYPE_VALUES, Unsupported, compile_query
 
@@ -157,19 +156,19 @@ def compile_search(q: str, *, include_extras: bool) -> tuple[str, list[Any], Pri
     return f"({where_sql}) AND card.is_extra = 0", params, terms
 
 
-def where_for(q: str, *, include_extras: bool, today: str | None = None) -> tuple[str, list[Any]]:
+def where_for(q: str, *, include_extras: bool) -> tuple[str, list[Any]]:
     """The WHERE clause (alias `card`) and parameters for the cards query *q* finds (see `compile_search`).
 
     When *q* has printing terms the clause asks for a passing printing, so the printings file must be attached.
     """
     where_sql, params, terms = compile_search(q, include_extras=include_extras)
-    return _with_a_passing_printing(where_sql, params, terms, today_or_now(today))
+    return _with_a_passing_printing(where_sql, params, terms)
 
 
-def _with_a_passing_printing(where_sql: str, params: list[Any], terms: PrintingTerms, today: str) -> tuple[str, list[Any]]:
+def _with_a_passing_printing(where_sql: str, params: list[Any], terms: PrintingTerms) -> tuple[str, list[Any]]:
     if not terms.needed:
         return where_sql, params
-    exists_sql, exists_params = has_passing_printing(terms, today)
+    exists_sql, exists_params = has_passing_printing(terms)
     return f"({where_sql}) AND {exists_sql}", [*params, *exists_params]
 
 
@@ -182,7 +181,6 @@ def search(  # noqa: PLR0913, PLR0917 - signature fixed by docs/PLAN-2026-10-03.
     page_size: int = DEFAULT_PAGE_SIZE,
     *,
     attach: Callable[[], object] | None = None,
-    today: str | None = None,
 ) -> SearchResult:
     """Parse, compile and run *q* against *conn*. Raises `Unsupported` rather than guessing.
 
@@ -190,9 +188,8 @@ def search(  # noqa: PLR0913, PLR0917 - signature fixed by docs/PLAN-2026-10-03.
     for a query with printing terms (`game:`, `prefer:`), and may be None when the file is attached already.
     """
     register_regexp(conn)
-    day = today_or_now(today)
     where_sql, params, terms = compile_search(q, include_extras=False)
-    where_sql, params = _with_a_passing_printing(where_sql, params, terms, day)
+    where_sql, params = _with_a_passing_printing(where_sql, params, terms)
     if terms.needed and attach is not None:
         attach()
 
@@ -211,7 +208,7 @@ def search(  # noqa: PLR0913, PLR0917 - signature fixed by docs/PLAN-2026-10-03.
     has_more = len(rows) > page_size
     page_rows = rows[:page_size]
     if terms.needed:
-        data = chosen_printings(conn, [card_id for card_id, _ in page_rows], terms, day)
+        data = chosen_printings(conn, [card_id for card_id, _ in page_rows], terms)
     else:
         data = [json.loads(card_json) for _, card_json in page_rows]
     return SearchResult(data=data, has_more=has_more, total_cards=total_cards)
