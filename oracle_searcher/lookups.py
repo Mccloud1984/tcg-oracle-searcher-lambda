@@ -14,7 +14,7 @@ from typing import TYPE_CHECKING, Any
 
 from oracle_searcher.importer import folded_name, merge_overlay, name_sort_key
 from oracle_searcher.printings_choice import PRINTING_ORDER
-from oracle_searcher.schema import PRINTINGS_TABLE
+from oracle_searcher.schema import GAME_BITS, PRINTINGS_TABLE
 from oracle_searcher.search import Unsupported, compile_search, register_regexp
 
 if TYPE_CHECKING:
@@ -140,7 +140,7 @@ def _printing_filters(event: dict[str, Any]) -> tuple[list[str], list[Any]]:
         clauses.append("p.released_at <= ?")
         params.append(event["released_on_or_before"])
     if event.get("paper_only"):
-        clauses.append("EXISTS (SELECT 1 FROM json_each(p.games) WHERE value = 'paper')")
+        clauses.append(f"(p.game_bits & {GAME_BITS['paper']}) != 0")
     return clauses, params
 
 

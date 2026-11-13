@@ -1,8 +1,8 @@
 """The printing-level search keywords: `game:` filters a card's printings, `prefer:` picks the one a search returns.
 
 Scryfall reads both (scryfall.com/docs/syntax). `game:paper|mtgo|arena` holds when a printing's `games` has the
-value; here it is answered only as a top-level and-ed term (or its negation), where it can filter printings
-exactly. Nested anywhere else it reaches the compiler, which has no `card_games` column and raises `Unsupported`.
+value (stored as the printing's `game_bits`); here it is answered only as a top-level and-ed term (or its negation),
+where it can filter printings exactly. Nested anywhere else it reaches the compiler, which has no `card_games` column and raises `Unsupported`.
 
 A printing passes when it is not a hidden printing of a visible card (as the `prints` lookup reads them) and meets
 every `game:` term. Unreleased (preview) printings pass, as on Scryfall (live 2026-11-13: Archenemy's Charm's
@@ -22,7 +22,7 @@ from typing import TYPE_CHECKING, Any
 from api.parsing.card_query_nodes import CardAttributeNode, CardBinaryOperatorNode
 from api.parsing.nodes import AndNode, NotNode, StringValueNode, TrueNode
 from oracle_searcher.importer import merge_overlay
-from oracle_searcher.schema import PRINTINGS_TABLE
+from oracle_searcher.schema import GAME_BITS, PRINTINGS_TABLE
 from oracle_searcher.sqlite_compiler import Unsupported
 
 if TYPE_CHECKING:
@@ -30,21 +30,14 @@ if TYPE_CHECKING:
 
     from api.parsing.nodes import QueryNode
 
-GAMES = frozenset({"paper", "mtgo", "arena"})
 _KEEPS_THE_CARD_PRINTING = frozenset({None, "default", "promo"})
 
 # Newest first; ties (one release day, many printings) by name, then collector number as a number where it is one.
 PRINTING_ORDER = "p.released_at DESC, card.name_sort_key, CAST(p.collector_number AS INTEGER), p.collector_number, p.id"
 _OLDEST = "p.released_at ASC, CAST(p.collector_number AS INTEGER), p.collector_number, p.id"
-# A printing stores only what differs from its card (importer's overlay), so its prices may be the card's.
-_PRICES = "coalesce(json_extract(p.card_json, '$.prices'), json_extract(card.card_json, '$.prices'))"
-_USD = (
-    f"CAST(coalesce(json_extract({_PRICES}, '$.usd'), json_extract({_PRICES}, '$.usd_foil'),"
-    f" json_extract({_PRICES}, '$.usd_etched')) AS REAL)"
-)
 _PREFER_ORDER = {
-    "usd-low": f"{_USD} IS NULL, {_USD} ASC, {PRINTING_ORDER}",
-    "usd-high": f"{_USD} IS NULL, {_USD} DESC, {PRINTING_ORDER}",
+    "usd-low": f"p.price_usd IS NULL, p.price_usd ASC, {PRINTING_ORDER}",
+    "usd-high": f"p.price_usd IS NULL, p.price_usd DESC, {PRINTING_ORDER}",
     "newest": PRINTING_ORDER,
     "oldest": _OLDEST,
 }
@@ -58,7 +51,7 @@ def _game_value(node: QueryNode) -> str | None:
     if node.lhs.attribute_name != "card_games":
         return None
     value = node.rhs.value.lower() if isinstance(node.rhs, StringValueNode) and node.operator in (":", "=") else None
-    if value not in GAMES:
+    if value not in GAME_BITS:
         msg = f"game {node.rhs!r} is not supported"
         raise Unsupported(msg)
     return value
@@ -70,7 +63,7 @@ def _conjuncts(node: QueryNode) -> list[QueryNode]:
     return [node]
 
 
-_IN_GAME = "EXISTS (SELECT 1 FROM json_each(p.games) WHERE value = ?)"
+_IN_GAME = "(p.game_bits & ?) != 0"
 
 
 @dataclass(frozen=True)
@@ -79,7 +72,7 @@ class PrintingTerms:
 
     root: QueryNode
     game_sql: tuple[str, ...]
-    game_params: tuple[str, ...]
+    game_params: tuple[int, ...]
     prefer: str | None
 
     @property
@@ -97,7 +90,7 @@ def split_printing_terms(root: QueryNode, prefer: str | None) -> PrintingTerms:
     """Take the top-level `game:` and `-game:` terms out of `root`."""
     kept: list[QueryNode] = []
     game_sql: list[str] = []
-    game_params: list[str] = []
+    game_params: list[int] = []
     for leaf in _conjuncts(root):
         negated = isinstance(leaf, NotNode)
         game = _game_value(leaf.operand if negated else leaf)
@@ -105,7 +98,7 @@ def split_printing_terms(root: QueryNode, prefer: str | None) -> PrintingTerms:
             kept.append(leaf)
             continue
         game_sql.append(f"NOT {_IN_GAME}" if negated else _IN_GAME)
-        game_params.append(game)
+        game_params.append(GAME_BITS[game])
     if not game_sql:
         return PrintingTerms(root, (), (), prefer)
     rest = TrueNode() if not kept else kept[0] if len(kept) == 1 else AndNode(kept)
@@ -126,11 +119,13 @@ def chosen_printings(conn: sqlite3.Connection, card_ids: list[int], terms: Print
     order = _PREFER_ORDER.get(terms.prefer or "", _CARD_PRINTING_FIRST)
     ids = ", ".join("?" for _ in card_ids)
     rows = conn.execute(
-        "SELECT card_id, card_json, overlay FROM ("
-        " SELECT card.id AS card_id, card.card_json AS card_json, p.card_json AS overlay,"
+        # The window ranks printing rowids only; the JSON is read for the one picked printing of each card.
+        "SELECT card.id, card.card_json, picked.card_json FROM ("
+        " SELECT card.id AS card_id, p.rowid AS printing_rowid,"
         f" ROW_NUMBER() OVER (PARTITION BY card.id ORDER BY {order}) AS pick"
         f" FROM cards AS card CROSS JOIN {PRINTINGS_TABLE} AS p WHERE card.id IN ({ids}) AND {passing}"
-        ") WHERE pick = 1",
+        f") AS ranked JOIN cards AS card ON card.id = ranked.card_id"
+        f" JOIN {PRINTINGS_TABLE} AS picked ON picked.rowid = ranked.printing_rowid WHERE ranked.pick = 1",
         [*card_ids, *params],
     ).fetchall()
     by_id = {card_id: merge_overlay(json.loads(card), json.loads(overlay)) for card_id, card, overlay in rows}

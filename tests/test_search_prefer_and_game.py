@@ -14,8 +14,8 @@ import pytest
 
 from oracle_searcher import lookups
 from oracle_searcher.importer import build
-from oracle_searcher.schema import PRINTINGS_ALIAS
-from oracle_searcher.search import Unsupported, search
+from oracle_searcher.schema import GAME_BITS, PRINTINGS_ALIAS
+from oracle_searcher.search import Unsupported, search, where_for
 from tests.conftest import FIXTURES_DIR, TAGS_FIXTURE
 
 TODAY = "2026-11-13"
@@ -141,3 +141,32 @@ def test_prints_keeps_only_the_printings_in_the_game(db: sqlite3.Connection) -> 
         ("me2", "225"),
         ("prm", "43600"),
     }
+
+
+@pytest.mark.parametrize(
+    ("set_code", "number", "price", "games"),
+    [
+        ("frc", "57", 0.86, {"paper", "mtgo"}),
+        ("9ed", "297★", 206.75, {"paper", "mtgo"}),  # foil-only: the foil price stands in, as `prefer:usd-*` reads it
+        ("vma", "291", None, {"mtgo"}),  # unpriced
+    ],
+)
+def test_printings_keep_price_and_games_as_columns(
+    db: sqlite3.Connection, set_code: str, number: str, price: float | None, games: set[str]
+) -> None:
+    """`game:` and `prefer:usd-*` read these columns, never each printing's JSON (2026-11-13: +95 ms on otag:ramp)."""
+    row = db.execute(
+        f"SELECT price_usd, game_bits FROM {PRINTINGS_ALIAS}.printings WHERE set_code = ? AND collector_number = ?",
+        (set_code, number),
+    ).fetchone()
+    assert row[0] == price
+    assert row[1] == sum(GAME_BITS[game] for game in games)
+
+
+def test_a_passing_printing_is_found_through_the_covering_index(db: sqlite3.Connection) -> None:
+    """The per-card printing check reads only the index, so a broad search does not read every card's printings."""
+    where_sql, params = where_for(f"{BOTH} game:paper prefer:usd-low", include_extras=False)
+    plan = " ".join(
+        row[3] for row in db.execute(f"EXPLAIN QUERY PLAN SELECT COUNT(*) FROM cards AS card WHERE {where_sql}", params)
+    )
+    assert "USING COVERING INDEX printings_choice" in plan

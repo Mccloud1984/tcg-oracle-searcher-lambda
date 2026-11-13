@@ -11,8 +11,9 @@ The printings live in a second file (`PRINTINGS_DDL`), so a search never pays fo
 cards file against 169 MB without (measured 2026-10-04, close to the Lambda's 512 MB /tmp). The search Lambda
 ATTACHes it as `PRINTINGS_ALIAS` on the first op that needs it. Its `printings` table has one row per printing (the
 `default_cards` bulk file): id (Scryfall printing id), oracle_id (links to cards.oracle_id), set_code,
-collector_number, released_at, set_type, games (JSON array) and card_json (the printing as an overlay on its oracle
-card's card_json, see importer.merge_overlay). Indexed on oracle_id and (set_code, collector_number). Its own `meta`
+collector_number, released_at, set_type, game_bits (mask), price_usd and card_json (the printing as an overlay on its
+oracle card's card_json, see importer.merge_overlay). Indexed on (oracle_id, is_extra, game_bits) and (set_code,
+collector_number). Its own `meta`
 table carries `printings_schema_version`.
 
 Value conventions:
@@ -36,11 +37,12 @@ Value conventions:
 import sqlite3
 
 SCHEMA_VERSION = 3  # the cards file; the printings file has its own PRINTINGS_SCHEMA_VERSION
-PRINTINGS_SCHEMA_VERSION = 2
+PRINTINGS_SCHEMA_VERSION = 3
 PRINTINGS_ALIAS = "pr"  # the schema name the printings file is ATTACHed under
 PRINTINGS_TABLE = f"{PRINTINGS_ALIAS}.printings"  # how queries over the attached file name the table
 
 COLOR_BITS = {"W": 1, "U": 2, "B": 4, "R": 8, "G": 16, "C": 32}
+GAME_BITS = {"paper": 1, "mtgo": 2, "arena": 4}  # printings.game_bits; the games `game:` answers
 
 DDL = """
 CREATE TABLE cards (
@@ -138,12 +140,13 @@ CREATE TABLE printings (
     collector_number      TEXT,
     released_at           TEXT,
     set_type              TEXT,
-    games                 TEXT NOT NULL,        -- JSON array
+    game_bits             INTEGER NOT NULL,     -- mask of GAME_BITS
+    price_usd             REAL,                 -- usd, else usd_foil, else usd_etched (what prefer:usd-* sorts on)
     is_extra              INTEGER NOT NULL DEFAULT 0,  -- 1 for what Scryfall hides (memorabilia, playtests, variations, etc.)
     card_json             TEXT NOT NULL         -- trimmed Scryfall printing object
 );
 
-CREATE INDEX printings_oracle_id ON printings(oracle_id);
+CREATE INDEX printings_choice ON printings(oracle_id, is_extra, game_bits);  -- covers the per-card printing check
 CREATE INDEX printings_set_collector ON printings(set_code, collector_number);
 """
 

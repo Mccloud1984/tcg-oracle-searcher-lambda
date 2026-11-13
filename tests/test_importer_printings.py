@@ -146,7 +146,18 @@ def test_build_without_printings_out_writes_no_printings_file(tmp_path: Path) ->
 def test_printings_table_has_required_columns(full: sqlite3.Connection) -> None:
     """The printings table has all required columns."""
     cols = {r["name"] for r in full.execute("PRAGMA table_info(printings)")}
-    required = {"id", "oracle_id", "set_code", "collector_number", "released_at", "set_type", "games", "card_json", "is_extra"}
+    required = {
+        "id",
+        "oracle_id",
+        "set_code",
+        "collector_number",
+        "released_at",
+        "set_type",
+        "game_bits",
+        "price_usd",
+        "card_json",
+        "is_extra",
+    }
     assert required <= cols
 
 
@@ -156,7 +167,7 @@ def test_printings_table_has_indexes(full: sqlite3.Connection) -> None:
         r["name"]
         for r in full.execute(f"SELECT name FROM {PRINTINGS_ALIAS}.sqlite_master WHERE type='index' AND tbl_name='printings'")
     }
-    assert "printings_oracle_id" in indexes
+    assert "printings_choice" in indexes
     assert "printings_set_collector" in indexes
 
 

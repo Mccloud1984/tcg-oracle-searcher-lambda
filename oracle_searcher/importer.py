@@ -33,7 +33,7 @@ from api.card_processing import (
     rarity_text_to_int,
 )
 from api.parsing.card_query_nodes import calculate_devotion, fold_accents, mana_cost_str_to_dict
-from oracle_searcher.schema import COLOR_BITS, PRINTINGS_TABLE, create_printings_schema, create_schema
+from oracle_searcher.schema import COLOR_BITS, GAME_BITS, PRINTINGS_TABLE, create_printings_schema, create_schema
 
 if TYPE_CHECKING:
     from collections.abc import Iterable, Iterator
@@ -476,7 +476,7 @@ def _is_playtest_or_funny(card: dict[str, Any]) -> bool:
 
 
 # Games whose printings Scryfall's default search shows; the other games (astral, sega) are hidden.
-_PLAYABLE_GAMES = frozenset({"paper", "mtgo", "arena"})
+_PLAYABLE_GAMES = frozenset(GAME_BITS)
 
 # Types of game objects that are not cards you play. Scryfall hides these when they are legal in no format
 # (counters, Role tokens, Secret Lair mana cards, sticker sheets); Dungeons, which have their own type, stay visible.
@@ -683,6 +683,11 @@ def _get_oracle_id_from_printing(printing: dict[str, Any]) -> str | None:
     return None
 
 
+def _printing_usd(prices: dict[str, Any]) -> float | None:
+    """The price `prefer:usd-*` sorts a printing by: normal, else foil, else etched."""
+    return next((price for key in ("usd", "usd_foil", "usd_etched") if (price := maybe_float(prices.get(key))) is not None), None)
+
+
 def _build_printing_row(printing: dict[str, Any], oracle_card_trimmed: dict[str, Any] | None) -> dict[str, Any] | None:
     """Build one printings table row from a Scryfall printing object.
 
@@ -703,7 +708,8 @@ def _build_printing_row(printing: dict[str, Any], oracle_card_trimmed: dict[str,
         "collector_number": printing.get("collector_number"),
         "released_at": printing.get("released_at"),
         "set_type": printing.get("set_type"),
-        "games": json.dumps(printing.get("games") or []),
+        "game_bits": sum(bit for game, bit in GAME_BITS.items() if game in (printing.get("games") or [])),
+        "price_usd": _printing_usd(printing.get("prices") or {}),
         "is_extra": 1 if _is_extra(printing) else 0,
         "card_json": json.dumps(overlay),
     }
@@ -863,7 +869,8 @@ _PRINTING_COLUMNS = [
     "collector_number",
     "released_at",
     "set_type",
-    "games",
+    "game_bits",
+    "price_usd",
     "is_extra",
     "card_json",
 ]
