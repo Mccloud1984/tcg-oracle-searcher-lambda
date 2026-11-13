@@ -155,3 +155,43 @@ def test_reserved_word_as_value_parity(query: str) -> None:
     value position, so e.g. 'o:or' silently lost its value and became 'o: OR'.
     """
     assert_parsers_agree(query)
+
+
+@pytest.mark.parametrize(
+    argnames=["query"],
+    argvalues=[
+        # `,`
+        (",",),
+        ("-,",),
+        (",jace",),
+        ("jace, re",),
+        ("(jace, re)",),
+        ("(jace),(re)",),
+        ("jace, OR re",),
+        ("jace,-re",),
+        ("jace-beleren,",),
+        ("!jace,",),
+        ("name:,",),
+        ("name:,,",),
+        ("name:jace,",),
+        ("name:jace, re",),
+        ("name:jace,re",),
+        ("o:a,b,c",),
+        ("o:draw, flying",),
+        ("o:draw, -t:land",),
+        ("t:elf,",),
+        ("r:rare,",),
+        ("f:modern,",),
+        # Rejected by both: a comma can't continue a color or a number.
+        ("c:r,",),
+        ("cmc>3,",),
+        ("cmc>3, t:elf",),
+    ],
+)
+def test_value_punctuation_parity(query: str) -> None:
+    """`,` is an ordinary value character in both parsers (`~` is not ported: see pyparsing_based._VALUE_PUNCT), so they accept and reject the same queries.
+
+    The hand parser's _WORD_START/_WORD_CONT and pyparsing_based's _VALUE_PUNCT each list these
+    characters; a query here that only one parser accepts means the two lists have drifted.
+    """
+    assert_parsers_agree(query)

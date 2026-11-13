@@ -93,7 +93,6 @@ class TT(Enum):
     LPAREN = auto()
     RPAREN = auto()
     BANG = auto()  # !  (exact-name prefix)
-    COMMA = auto()  # only ever dropped after a name word (see Parser._skip_name_comma); anywhere else a parse error
     EOF = auto()
 
 
@@ -108,8 +107,10 @@ class Token:
 
 
 _ARITH_OPS: frozenset[TT] = frozenset({TT.PLUS, TT.MINUS, TT.STAR, TT.SLASH})
-_WORD_START = frozenset("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ_")
-_WORD_CONT = frozenset("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ_0123456789.")
+# `,` is an ordinary value character, at the start of a word and inside one, so a bare value is the same search as its
+# quoted spelling (`name:jace,` is `name:"jace,"`; Sylvan #1127). pyparsing_based's _VALUE_PUNCT holds the same characters.
+_WORD_START = frozenset("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ_,")
+_WORD_CONT = frozenset("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ_0123456789.,")
 _DIGIT = frozenset("0123456789")
 _SPACE = frozenset(" \t\r\n")
 
@@ -267,11 +268,6 @@ def tokenize(src: str) -> list[Token]:  # noqa: C901, PLR0912, PLR0915
                 close_index, content = closed
                 tokens.append(Token(TT.REGEX, content, start, sb))
                 pos = close_index + 1
-            continue
-
-        if c == ",":
-            tokens.append(Token(TT.COMMA, ",", start, sb))
-            pos += 1
             continue
 
         # Single-char arithmetic / grouping
@@ -638,19 +634,6 @@ class Parser:
             lhs = CardBinaryOperatorNode(lhs, op, self.parse_num_term())
         return lhs
 
-    def _skip_name_comma(self) -> None:
-        """Drop a comma that ends a name word ("jace," in `name:jace, re`), as Scryfall's name search does.
-
-        Only a comma touching the word and followed by a space, ')' or the end counts: `name:jace,re` is the
-        phrase "jace re" to Scryfall, which this parser does not model, so that comma stays a parse error.
-        """
-        tok = self.peek()
-        if tok.type != TT.COMMA or tok.space_before:
-            return
-        after = self.peek(1)
-        if after.type in (TT.EOF, TT.RPAREN) or after.space_before:
-            self.consume()
-
     # ── implicit name (possibly hyphenated) ───────────────────────────────────
 
     def parse_hyphenated_name(self, first: str) -> CardBinaryOperatorNode:
@@ -664,7 +647,6 @@ class Parser:
         ):
             self.consume()  # MINUS
             parts.append(str(self.consume().value))
-        self._skip_name_comma()
         return _name_node("-".join(parts))
 
     # ── value parsers ─────────────────────────────────────────────────────────
@@ -709,8 +691,6 @@ class Parser:
             ):
                 self.consume()
                 word += "-" + str(self.consume().value)
-            if attr == "name":
-                self._skip_name_comma()
             return StringValueNode(word)
         msg = f"Expected value for {attr!r}, got {tok.value!r} at position {tok.pos}"
         raise ParseError(msg)
