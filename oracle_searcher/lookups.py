@@ -9,12 +9,12 @@ handler turns that, and any other failure, into the contract's `{"unsupported"}`
 from __future__ import annotations
 
 import json
-from datetime import UTC, datetime
 from typing import TYPE_CHECKING, Any
 
 from oracle_searcher.importer import folded_name, merge_overlay, name_sort_key
+from oracle_searcher.printings_choice import PRINTING_ORDER, today_or_now
 from oracle_searcher.schema import PRINTINGS_TABLE
-from oracle_searcher.search import Unsupported, register_regexp, where_for
+from oracle_searcher.search import Unsupported, compile_search, register_regexp
 
 if TYPE_CHECKING:
     import sqlite3
@@ -36,12 +36,6 @@ _NAME_TIERS = (
     f" ORDER BY instr({_FACES}, ' // ' || :folded || ' // '), id",
     "SELECT id FROM cards WHERE is_extra = :extra AND :key != '' AND name_sort_key = :key ORDER BY id",
 )
-# Newest first; ties (one release day, many printings) by name, then collector number as a number where it is one.
-_PRINTING_ORDER = "p.released_at DESC, card.name_sort_key, CAST(p.collector_number AS INTEGER), p.collector_number, p.id"
-
-
-def _today(today: str | None) -> str:
-    return today or datetime.now(UTC).date().isoformat()
 
 
 def _matching_card_row(conn: sqlite3.Connection, name: str) -> tuple[str, str | None, str] | None:
@@ -71,7 +65,7 @@ def _printings(
     join = "CROSS JOIN" if cards_first else "JOIN"
     sql = f"SELECT card.card_json, p.card_json FROM cards AS card {join} {PRINTINGS_TABLE} AS p ON p.oracle_id = card.oracle_id"
     # Filter: keep printing if card is extra OR printing is not extra
-    sql += f" WHERE ({where}) AND (card.is_extra = 1 OR p.is_extra = 0) ORDER BY {_PRINTING_ORDER}"
+    sql += f" WHERE ({where}) AND (card.is_extra = 1 OR p.is_extra = 0) ORDER BY {PRINTING_ORDER}"
     if limit:
         sql += f" LIMIT {int(limit)}"
     return [merge_overlay(json.loads(card), json.loads(overlay)) for card, overlay in conn.execute(sql, params)]
@@ -97,7 +91,7 @@ def _card_by_name(conn: sqlite3.Connection, name: str, attach: Attach, today: st
 
 def named(conn: sqlite3.Connection, event: dict[str, Any], attach: Attach, *, today: str | None = None) -> dict[str, Any]:
     """`{name}` -> `{card}`, or `{card: None}` when no card matches (Purroxy then asks Scryfall's fuzzy match)."""
-    return {"card": _card_by_name(conn, event["name"], attach, _today(today))}
+    return {"card": _card_by_name(conn, event["name"], attach, today_or_now(today))}
 
 
 def _card_by_identifier(conn: sqlite3.Connection, ident: dict[str, Any], attach: Attach, today: str) -> Card | None:
@@ -123,7 +117,7 @@ def collection(conn: sqlite3.Connection, event: dict[str, Any], attach: Attach, 
     if len(identifiers) > MAX_COLLECTION:
         msg = f"collection takes at most {MAX_COLLECTION} identifiers, got {len(identifiers)}"
         raise Unsupported(msg)
-    day = _today(today)
+    day = today_or_now(today)
     found = [(ident, _card_by_identifier(conn, ident, attach, day)) for ident in identifiers]
     return {"data": [card for _, card in found if card], "not_found": [ident for ident, card in found if not card]}
 
@@ -179,12 +173,15 @@ def prints(conn: sqlite3.Connection, event: dict[str, Any], attach: Attach, *, t
     """`{q, sets_exclude?, sets_restrict?, released_on_or_before?, paper_only?, summary?}` -> `{data}`.
 
     Every printing of the cards `q` matches (extras included, no paging), newest first, narrowed by the
-    printing-level fields. With `summary`, each printing carries only PRINTING_SUMMARY_FIELDS (for a printing picker;
+    printing-level fields and by `q`'s top-level `game:` terms (a `prefer:` in `q` changes nothing: every printing
+    comes back). With `summary`, each printing carries only PRINTING_SUMMARY_FIELDS (for a printing picker;
     a caller that uses the printing as a card, e.g. to detect its tokens, asks for the full card).
     """
     register_regexp(conn)
-    where, params = where_for(event["q"], include_extras=True)
+    where, params, terms = compile_search(event["q"], include_extras=True)
     clauses, filter_params = _printing_filters(event)
+    clauses += terms.game_sql
+    filter_params += terms.game_params
     attach()
     data = _printings(conn, " AND ".join([f"({where})", *clauses]), [*params, *filter_params], cards_first=True)
     return {"data": [_summary(p) for p in data] if event.get("summary") else data}

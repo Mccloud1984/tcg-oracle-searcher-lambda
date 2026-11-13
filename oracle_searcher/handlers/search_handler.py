@@ -158,6 +158,7 @@ def _search(event: dict[str, Any]) -> dict[str, Any]:
         order=event.get("order", "edhrec"),
         dir=event.get("dir", "auto"),
         page=int(event.get("page", 1)),
+        attach=printings_connection,
     )
     return {"data": result.data, "has_more": result.has_more, "total_cards": result.total_cards}
 
