@@ -10,6 +10,7 @@ Early work. The plan:
 
 - **Search:** a query parser for Scryfall's syntax, compiled to SQLite. A query it can't answer says so, and the caller asks Scryfall instead; it never guesses.
 - **Ordering and paging** as Scryfall does them, with results in Scryfall's card-object shape.
+- **Printings:** `game:paper|mtgo|arena` filters a card's printings and `prefer:usd-low|usd-high|oldest|newest|default|promo` returns each card in the printing it picks (for example its cheapest paper one with `game:paper prefer:usd-low`), without changing which cards come back in what order.
 - **Double-faced cards:** a card matches when any of its faces matches.
 - **Data:** a nightly import from Scryfall's bulk data files, built into one SQLite file and published to S3.
 - **Deployment:** a search Lambda, an import Lambda and a weekly `is:` tag sweep Lambda, with a Terraform module you can use from your own stack.
