@@ -261,6 +261,34 @@ def test_paging_exact_fit_has_no_more_pages() -> None:
     assert result.has_more is False
 
 
+def test_a_page_past_the_end_still_reports_the_total() -> None:
+    conn = make_db()
+    _insert_three(conn)
+    result = search(conn, "", order="name", page=3, page_size=2)
+    assert (result.data, result.has_more, result.total_cards) == ([], False, 3)
+
+
+def test_no_match_reports_zero() -> None:
+    conn = make_db()
+    _insert_three(conn)
+    result = search(conn, "t:planeswalker", page=1)
+    assert (result.data, result.has_more, result.total_cards) == ([], False, 0)
+
+
+def test_a_page_runs_the_search_once(monkeypatch: pytest.MonkeyPatch) -> None:
+    """The total comes with the page (a window count), not from a second run of the WHERE clause.
+
+    The second run doubled a search's time (2026-11-13: otag:ramp 424 ms in two queries, 198 ms in one).
+    """
+    conn = make_db()
+    _insert_three(conn)
+    statements: list[str] = []
+    conn.set_trace_callback(statements.append)
+    result = search(conn, "t:artifact", order="name", page=1, page_size=1)
+    assert (len(result.data), result.has_more, result.total_cards) == (1, True, 2)
+    assert sum("FROM cards AS card WHERE" in s for s in statements) == 1
+
+
 # ── unsupported order/dir ────────────────────────────────────────────────────────────────────
 
 

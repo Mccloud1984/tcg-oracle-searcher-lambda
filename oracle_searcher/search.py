@@ -193,25 +193,32 @@ def search(  # noqa: PLR0913, PLR0917 - signature fixed by docs/PLAN-2026-10-03.
     if terms.needed and attach is not None:
         attach()
 
-    total_cards = conn.execute(
-        f"SELECT COUNT(*) FROM cards AS card WHERE {where_sql}",
-        params,
-    ).fetchone()[0]
-
-    order_by_sql = _order_by_sql(order, dir)
+    # One run of the WHERE clause: the page's ids with the total as a window count (a separate COUNT doubled a search's
+    # time, 2026-11-13), and the JSON read for the page's cards only.
     offset = (page - 1) * page_size
     rows = conn.execute(
-        f"SELECT card.id, card.card_json FROM cards AS card WHERE {where_sql} ORDER BY {order_by_sql} LIMIT ? OFFSET ?",
+        f"SELECT card.id, COUNT(*) OVER () FROM cards AS card WHERE {where_sql} ORDER BY {_order_by_sql(order, dir)} LIMIT ? OFFSET ?",
         [*params, page_size + 1, offset],
     ).fetchall()
-
-    has_more = len(rows) > page_size
-    page_rows = rows[:page_size]
-    if terms.needed:
-        data = chosen_printings(conn, [card_id for card_id, _ in page_rows], terms)
+    if rows:
+        total_cards = rows[0][1]
+    elif offset:  # a page past the end: no row carries the total
+        total_cards = conn.execute(f"SELECT COUNT(*) FROM cards AS card WHERE {where_sql}", params).fetchone()[0]
     else:
-        data = [json.loads(card_json) for _, card_json in page_rows]
-    return SearchResult(data=data, has_more=has_more, total_cards=total_cards)
+        total_cards = 0
+
+    card_ids = [card_id for card_id, _ in rows[:page_size]]
+    data = chosen_printings(conn, card_ids, terms) if terms.needed else _cards_json(conn, card_ids)
+    return SearchResult(data=data, has_more=len(rows) > page_size, total_cards=total_cards)
+
+
+def _cards_json(conn: sqlite3.Connection, card_ids: list[int]) -> list[dict[str, Any]]:
+    """Each of `card_ids` (in that order) as its card JSON."""
+    if not card_ids:
+        return []
+    ids = ", ".join("?" for _ in card_ids)
+    by_id = dict(conn.execute(f"SELECT id, card_json FROM cards WHERE id IN ({ids})", card_ids).fetchall())
+    return [json.loads(by_id[card_id]) for card_id in card_ids]
 
 
 __all__ = ["SearchResult", "Unsupported", "compile_search", "register_regexp", "search", "where_for"]
